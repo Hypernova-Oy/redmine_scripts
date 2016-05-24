@@ -171,9 +171,10 @@ sub _verifyStartTime {
     if (DateTime::Duration->compare($remainder, $startDuration, $startDt) >= 0) { #Remainder is bigger than the starting hours, so we have plenty of time today to fill the worktime starting from the given startTime
         return $startDt;
     }
-    #If we started working on the starting time, we cannot fit the whole workday duration to the current day. So we adjust the starting time to an earlier time.
+    #If we started working on the starting time, and we cannot fit the whole workday duration to the current day. So we adjust the starting time to an earlier time.
     $remainder->subtract($startDuration);
     $startDt->add_duration($remainder); #Remainder is negative, because it has got $startDuration subtracted from it
+    $startDt->subtract_duration(DateTime::Duration->new(seconds => 1)); #remove one minute from midnight so $endDt is not 00:00:00 but 23:59:59 instead
     return $startDt;
 }
 

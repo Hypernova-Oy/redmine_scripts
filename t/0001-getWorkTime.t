@@ -73,8 +73,8 @@ sub _verifyStartTime {
 
     &$_verifyStartTimeTest('07:45:00', '07:45:00', '08:00');
     &$_verifyStartTimeTest('03:45:00', '03:45:00', '20:15');
-    &$_verifyStartTimeTest('03:45:00', '07:45:00', '20:15');
-    &$_verifyStartTimeTest('03:45:00', undef     , '20:15');
+    &$_verifyStartTimeTest('03:44:59', '07:45:00', '20:15');
+    &$_verifyStartTimeTest('03:44:59', undef     , '20:15');
 }
 
 subtest "_verifyEndTime", \&_verifyEndTime;
@@ -199,18 +199,25 @@ sub advancedDaily {
             {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1},
             {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75},
 
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 1.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5},  #Dangerous unsyncronized worklog entries
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5},
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25},
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5},
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
             {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5},
+
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5},  #Dangerous unsyncronized worklog entries fixed days later
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25},
+            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5},
+            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5},
         ];
     });
 
     my $days = RMS::Worklogs->new({user_id => 1})->asDays();
     my @k = sort keys %$days;
-    is(scalar(keys(%$days)), 4, "4 days");
+    is(scalar(keys(%$days)), 5, "5 days");
 
     is($days->{$k[0]}->day(),              '2015-06-11',          "1st day");
     is($days->{$k[0]}->start()->iso8601(), '2015-06-11T10:04:29', "1st start");
@@ -234,11 +241,18 @@ sub advancedDaily {
     is($dtF_hms->format_duration($days->{$k[2]}->overwork()), '+00:44:42', "3rd overwork");
 
     is($days->{$k[3]}->day(),              '2016-05-20',          "4th day");
-    is($days->{$k[3]}->start()->iso8601(), '2016-05-20T09:35:17', "4th start");
+    is($days->{$k[3]}->start()->iso8601(), '2016-05-20T00:35:17', "4th start");
     is($days->{$k[3]}->end()->iso8601(),   '2016-05-20T16:05:17', "4th end");
-    is($dtF_hms->format_duration($days->{$k[3]}->duration()), '+06:30:00', "4th duration");
+    is($dtF_hms->format_duration($days->{$k[3]}->duration()), '+15:30:00', "4th duration");
     is($dtF_hms->format_duration($days->{$k[3]}->breaks()),   '+00:00:00', "4th breaks");
-    is($dtF_hms->format_duration($days->{$k[3]}->overwork()), '-00:45:00', "4th overwork");
+    is($dtF_hms->format_duration($days->{$k[3]}->overwork()), '+08:15:00', "4th overwork");
+
+    is($days->{$k[4]}->day(),              '2016-05-21',          "5th day");
+    is($days->{$k[4]}->start()->iso8601(), '2016-05-21T08:29:59', "5th start");
+    is($days->{$k[4]}->end()->iso8601(),   '2016-05-21T23:59:59', "5th end");
+    is($dtF_hms->format_duration($days->{$k[4]}->duration()), '+15:30:00', "5th duration");
+    is($dtF_hms->format_duration($days->{$k[4]}->breaks()),   '+00:00:00', "5th breaks");
+    is($dtF_hms->format_duration($days->{$k[4]}->overwork()), '+08:15:00', "5th overwork");
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;
