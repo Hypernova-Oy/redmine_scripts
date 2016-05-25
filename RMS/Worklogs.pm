@@ -36,7 +36,7 @@ sub getWorklogs {
     my ($self) = @_;
 
     my $dbh = RMS::Context->dbh();
-    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours FROM time_entries WHERE user_id = ? ORDER BY spent_on DESC, created_on DESC");
+    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours FROM time_entries WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
     $sth->execute($self->param('user_id'));
     $self->{worklogs} = $sth->fetchall_arrayref({});
     return $self->{worklogs};
@@ -156,13 +156,23 @@ duration actually can fit inside one day if it starts at 08:00
 We might have to shift the start time earlier than 08:00 in some cases where
 days have been very long.
 
+It is possible for the $startDt to be earlier than the current day, so we must
+adjust that back to 00:00:00. This can happen when one logs more hours than there
+have been up to the moment of logging
+
 =cut
 
 sub _verifyStartTime {
     my ($class, $day, $startDt, $duration) = @_;
+    unless ($day =~ /^\d\d\d\d-\d\d-\d\d$/) {
+        confess "\$day '$day' is not a proper YYYY-MM-DD date";
+    }
 
     unless ($startDt) {
-        $startDt = DateTime::Format::MySQL->parse_datetime( "$day 00:00:00" )->set_hour(8);
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$day 08:00:00" );
+    }
+    unless ($startDt->ymd('-') eq $day) { #$startDt might get moved to the previous day, so catch this and fix it.
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$day 00:00:00" );
     }
 
     my $remainder = DateTime::Duration->new(days => 1)->subtract( $duration );
