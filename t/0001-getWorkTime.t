@@ -225,12 +225,16 @@ sub advancedDaily {
             {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25},
             {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5},
             {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5},
+
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5}, #Bug: Negative break duration?
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666},
+            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25},
         ];
     });
 
     my $days = RMS::Worklogs->new({user_id => 1})->asDays();
     my @k = sort keys %$days;
-    is(scalar(keys(%$days)), 7, "7 days");
+    is(scalar(keys(%$days)), 8, "8 days");
 
     is($days->{$k[0]}->day(),              '2015-06-11',          "2015-06-11");
     is($days->{$k[0]}->start()->iso8601(), '2015-06-11T10:04:29', "2015-06-11 start");
@@ -279,6 +283,13 @@ sub advancedDaily {
     is($dtF_hms->format_duration($days->{$k[6]}->duration()), '+15:30:00', "2016-05-21 duration");
     is($dtF_hms->format_duration($days->{$k[6]}->breaks()),   '+00:00:00', "2016-05-21 breaks");
     is($dtF_hms->format_duration($days->{$k[6]}->overwork()), '+08:15:00', "2016-05-21 overwork");
+
+    is($days->{$k[7]}->day(),              '2016-09-20',          "2016-09-20 day");
+    is($days->{$k[7]}->start()->iso8601(), '2016-09-20T12:49:45', "2016-09-20 start");
+    is($days->{$k[7]}->end()->iso8601(),   '2016-09-20T18:44:42', "2016-09-20 end");
+    is($dtF_hms->format_duration($days->{$k[7]}->duration()), '+05:54:57', "2016-09-20 duration");
+    is($dtF_hms->format_duration($days->{$k[7]}->breaks()),   '-00:00:01', "2016-09-20 allow -1s break");
+    is($dtF_hms->format_duration($days->{$k[7]}->overwork()), '-01:20:03', "2016-09-20 overwork");
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;

@@ -219,6 +219,9 @@ sub _verifyBreaks {
     return $realDuration if (DateTime::Duration->compare($realDuration, DateTime::Duration->new(), $startDt) >= 0); #$realDuration is positive.
 
     #Break is negative, so $startDt and $endDt are too tight for $duration
+    #If duration is -00:00:01 (-1 second) we let it slip, but only this time!
+    return $realDuration if (DateTime::Duration->compare($realDuration, DateTime::Duration->new(seconds => -1), $startDt) >= 0); #$realDuration is bigger than -1 seconds.
+
     confess "\$startDt '".$startDt->iso8601()."' and \$endDt '".$endDt->iso8601()."' is too tight to fit the workday duration '".$dtF_hms->format_duration($duration)."'. Break '".$dtF_hms->format_duration($realDuration)."' cannot be negative!\n";
 }
 
