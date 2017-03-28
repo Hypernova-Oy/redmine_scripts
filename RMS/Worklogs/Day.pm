@@ -38,5 +38,11 @@ sub breaks {
 sub overwork {
     return shift->duration->clone->subtract($dayLength);
 }
+sub remoteWork {
+    return shift->{remoteWork};
+}
+sub benefits {
+    return 1 || shift->{benefits};
+}
 
 1;

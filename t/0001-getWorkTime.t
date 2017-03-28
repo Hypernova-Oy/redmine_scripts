@@ -358,7 +358,8 @@ sub simpleOdsExport {
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user => 1})->asCsv('/tmp/workTime.ods');
+    $days = RMS::Worklogs->new({user => 1})->asOds('/tmp/workTime.ods');
+    ok($days);
 #    `rm /tmp/workTime.ods`;
 }
 
