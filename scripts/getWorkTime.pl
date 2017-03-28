@@ -7,11 +7,11 @@ use Getopt::Long qw(:config no_ignore_case);
 use RMS::Worklogs;
 
 my $help;
-my $user_id;
+my $user;
 my $filePath;
 GetOptions(
     'h|help'      => \$help,
-    'u|user_id:i' => \$user_id,
+    'u|user:s'    => \$user,
     'f|file:s'    => \$filePath,
 );
 
@@ -22,7 +22,7 @@ Perfect for importing to LibreOffice and friends!
 
   -h --help     This nice help
 
-  -u --user_id  User id of the Redmine user whose worklogs you want to export.
+  -u --user     User id or the login name of the Redmine user whose worklogs you want to export.
 
   -f --file     Where to write the .csv?
 
@@ -37,13 +37,13 @@ if ($help) {
     print $usage;
     exit 0;
 }
-unless ($user_id && $filePath) {
+unless ($user && $filePath) {
     print $usage.
-          "You must define atleast --user_id\n";
+          "You must define atleast --user\n";
     exit 0;
 }
 
 
 
-RMS::Worklogs->new({user_id => $user_id})->asCsv($filePath);
+RMS::Worklogs->new({user => $user})->asCsv($filePath);
 

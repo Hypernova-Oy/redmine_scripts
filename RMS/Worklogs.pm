@@ -11,6 +11,8 @@ use Text::CSV;
 
 use RMS::Context;
 use RMS::Worklogs::Day;
+use RMS::Worklogs::Exporter;
+use RMS::Users;
 
 my $dtF_hms = DateTime::Format::Duration->new(
                     pattern => '%p%H:%M:%S',
@@ -35,9 +37,10 @@ sub worklogs {
 sub getWorklogs {
     my ($self) = @_;
 
+    my $user = RMS::Users::getUser($self->param('user'));
     my $dbh = RMS::Context->dbh();
     my $sth = $dbh->prepare("SELECT spent_on, created_on, hours FROM time_entries WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
-    $sth->execute($self->param('user_id'));
+    $sth->execute($user->{id});
     $self->{worklogs} = $sth->fetchall_arrayref({});
     return $self->{worklogs};
 }
@@ -47,6 +50,11 @@ sub asDays () {
 
     my $dailies = $self->_flattenDays();
     return $self->_calculateDays($dailies);
+}
+
+sub asOds {
+    my ($self, $filePath) = @_;
+    return RMS::Worklogs::Exporter->new({file => $filePath, worklogDays => $self->asDays()})->asOds;
 }
 
 sub asCsv {

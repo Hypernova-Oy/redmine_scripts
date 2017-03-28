@@ -152,7 +152,7 @@ sub simpleDaily {
         ];
     });
 
-    my $days = RMS::Worklogs->new({user_id => 1})->asDays();
+    my $days = RMS::Worklogs->new({user => 1})->asDays();
     my @k = sort keys %$days;
     is(scalar(keys(%$days)), 1, "1 days");
 
@@ -232,7 +232,7 @@ sub advancedDaily {
         ];
     });
 
-    my $days = RMS::Worklogs->new({user_id => 1})->asDays();
+    my $days = RMS::Worklogs->new({user => 1})->asDays();
     my @k = sort keys %$days;
     is(scalar(keys(%$days)), 8, "8 days");
 
@@ -305,7 +305,7 @@ sub simpleCsvExport {
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user_id => 1})->asCsv('/tmp/workTime.csv');
+    $days = RMS::Worklogs->new({user => 1})->asCsv('/tmp/workTime.csv');
     is(scalar(keys(%$days)), 7, "7 days");
 
     $csv = Text::CSV->new({binary => 1}) or die "Cannot use CSV: ".Text::CSV->error_diag ();
@@ -343,6 +343,23 @@ sub simpleCsvExport {
 
     close($fh);
     `rm /tmp/workTime.csv`;
+}
+
+subtest "simpleOdsExport", \&simpleOdsExport;
+sub simpleOdsExport {
+    my $module = Test::MockModule->new('RMS::Worklogs');
+    $module->mock('getWorklogs', sub {
+        return [
+            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2},
+            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2},
+            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
+            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
+        ];
+    });
+    my ($days, $csv, $fh, $row);
+
+    $days = RMS::Worklogs->new({user => 1})->asCsv('/tmp/workTime.ods');
+#    `rm /tmp/workTime.ods`;
 }
 
 done_testing();
