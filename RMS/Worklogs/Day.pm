@@ -6,11 +6,19 @@ use Carp;
 use DateTime::Duration;
 
 use RMS::Dates;
+use RMS::Worklogs::Tags;
 use RMS::WorkRules;
 
+use RMS::Logger;
+my $l = bless({}, 'RMS::Logger');
 
 sub new {
-    my ($class, $startDt, $endDt, $breakDuration, $workdayDuration, $benefits, $remote, $comments) = @_;
+    my ($class, $startDt, $endDt, $breakDuration, $workdayDuration, $overflowDuration, $underflowDuration, $benefits, $remote, $comments) = @_;
+
+    #If the end time overflows because workday duration is too long, append a warning to comments
+    #eg. "!END overflow 00:33:12!A typical comment."
+    $comments = '!END overflow '.RMS::Dates::formatDurationHMS($overflowDuration).'!'.($comments ? $comments : '') if ($overflowDuration);
+    $comments = '!START underflow '.RMS::Dates::formatDurationHMS($underflowDuration).'!'.($comments ? $comments : '') if ($underflowDuration);
 
     my $dayLength = RMS::WorkRules->new()->getDayLengthDt($startDt);
     my $self = {
@@ -21,6 +29,8 @@ sub new {
         benefits => $benefits,
         remote => $remote,
         overwork => $workdayDuration->clone->subtract($dayLength),
+        overflow => $overflowDuration,
+        underflow => $underflowDuration,
         comments => $comments,
     };
 
@@ -36,46 +46,48 @@ a flattened day-representation of the events happened within those worklog entri
 =cut
 
 sub newFromWorklogs {
-    my ($class, $day, $worklogs) = @_;
-    unless ($day =~ /^\d\d\d\d-\d\d-\d\d$/) {
-        confess "\$day '$day' is not a proper YYYY-MM-DD date";
+    my ($class, $dayYMD, $worklogs) = @_;
+    unless ($dayYMD =~ /^\d\d\d\d-\d\d-\d\d$/) {
+        confess "\$day '$dayYMD' is not a proper YYYY-MM-DD date";
     }
 
-    my ($startDt, $endDt, $breaksDuration, $workdayDuration, $benefits, $remote, $overflow);
+    my ($startDt, $endDt, $breaksDuration, $workdayDuration, $benefits, $remote, $overflowDuration, $underflowDuration);
     my @wls = sort {$a->{created_on} cmp $b->{created_on}} @$worklogs; #Sort from morning to evening, so first index is the earliest log entry
 
-    ##Flatten all comments and look for tags
+    ##Flatten all comments so tags can be looked for
     my @comments;
-    foreach my $log (@wls) {
-        push(@comments, $log->{comments});
+    ##Sum the durations of all individual worklog entries
+    $workdayDuration = DateTime::Duration->new();
+    foreach my $wl (@wls) {
+        push(@comments, $wl->{comments}) if $wl->{comments};
+        $l->trace("$dayYMD -> Comment prepended '".$wl->{comments}."'") if $wl->{comments} && $l->is_trace();
+
+        $workdayDuration->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} ));
+        $l->trace("$dayYMD -> Duration grows to ".RMS::Dates::formatDurationHMS($workdayDuration)) if $l->is_trace();
     }
     my $comments = join(' ', @comments);
     ($benefits, $remote, $startDt, $endDt, $comments) = RMS::Worklogs::Tags::parseTags($comments);
 
 
     #Hope to find some meaningful start time
-    if (not($startDt) && $wls[0]->{created_on} =~ /^$day/) {
+    if (not($startDt) && $wls[0]->{created_on} =~ /^$dayYMD/) {
         $startDt = DateTime::Format::MySQL->parse_datetime( $wls[0]->{created_on} );
         $startDt->subtract_duration( RMS::Dates::hoursToDuration( $wls[0]->{hours} ) );
+        $l->trace("$dayYMD -> Start ".$startDt->hms()) if $l->is_trace();
+    }
+
+    #Hope to find some meaningful end time from the last worklog
+    if (not($endDt) && $wls[-1]->{created_on} =~ /^$dayYMD/) {
+        $endDt = DateTime::Format::MySQL->parse_datetime( $wls[-1]->{created_on} );
+        $l->trace("$dayYMD -> End ".$endDt->hms()) if $l->is_trace();
     }
 
 
-    #Sum the separate worklog entries and hope to find some meaningful end time
-    $workdayDuration = DateTime::Duration->new();
-    foreach my $wl (@wls) {
-        $workdayDuration->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} ));
-        if (not($endDt) && $wl->{created_on} =~ /^$day/) {
-            $endDt = DateTime::Format::MySQL->parse_datetime( $wl->{created_on} );
-        }
-    }
+    ($startDt, $underflowDuration) = $class->_verifyStartTime($dayYMD, $startDt, $workdayDuration);
+    ($endDt, $overflowDuration) = $class->_verifyEndTime($dayYMD, $startDt, $endDt, $workdayDuration);
+    $breaksDuration = $class->_verifyBreaks($dayYMD, $startDt, $endDt, $workdayDuration);
 
-
-    $startDt = $class->_verifyStartTime($day, $startDt, $workdayDuration);
-    ($endDt, $overflow) = $class->_verifyEndTime($day, $startDt, $endDt, $workdayDuration);
-    $breaksDuration = $class->_verifyBreaks($day, $startDt, $endDt, $workdayDuration);
-
-    $comments = "!END overflow $overflow!$comments" if ($overflow);
-    return RMS::Worklogs::Day->new($startDt, $endDt, $breaksDuration, $workdayDuration, $benefits, $remote, $comments);
+    return RMS::Worklogs::Day->new($startDt, $endDt, $breaksDuration, $workdayDuration, $overflowDuration, $underflowDuration, $benefits, $remote, $comments);
 }
 
 sub day {
@@ -95,6 +107,12 @@ sub breaks {
 }
 sub overwork {
     return shift->{overwork};
+}
+sub overflow {
+    return shift->{overflow};
+}
+sub underflow {
+    return shift->{underflow};
 }
 sub remote {
     return shift->{remote};
@@ -118,33 +136,40 @@ days have been very long.
 It is possible for the $startDt to be earlier than the current day, so we must
 adjust that back to 00:00:00. This can happen when one logs more hours than there
 have been up to the moment of logging
+If such an underflow event occurs, the underflow duration is returned
+
+@RETURNS (DateTime, $underflowDuration);
 
 =cut
 
 sub _verifyStartTime {
-    my ($class, $day, $startDt, $duration) = @_;
+    my ($class, $dayYMD, $startDt, $duration) = @_;
 
     unless ($startDt) {
-        $startDt = DateTime::Format::MySQL->parse_datetime( "$day 08:00:00" );
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD 08:00:00" );
+        $l->trace("$dayYMD -> Spoofing \$startDt") if $l->is_trace();
     }
     if ($startDt->isa('DateTime::Duration')) {
-        $startDt = DateTime::Format::MySQL->parse_datetime( "$day ".RMS::Dates::formatDurationHMS($startDt) );
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD ".RMS::Dates::formatDurationHMS($startDt) );
     }
-    unless ($startDt->ymd('-') eq $day) { #$startDt might get moved to the previous day, so catch this and fix it.
-        $startDt = DateTime::Format::MySQL->parse_datetime( "$day 00:00:00" );
+    unless ($startDt->ymd('-') eq $dayYMD) { #$startDt might get moved to the previous day, so catch this and fix it.
+        $l->trace("$dayYMD -> Moving \$startDt to $dayYMD from ".$startDt->ymd()) if $l->is_trace();
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD 00:00:00" );
     }
 
+    ##Calculate how many hours is left for today after work
     my $remainder = DateTime::Duration->new(days => 1)->subtract( $duration );
 
-    my $startDuration = $startDt->subtract_datetime(  DateTime::Format::MySQL->parse_datetime( "$day 00:00:00" )  ); #We get the hours and minutes
+    my $startDuration = $startDt->subtract_datetime(  DateTime::Format::MySQL->parse_datetime( "$dayYMD 00:00:00" )  ); #We get the hours and minutes
     if (DateTime::Duration->compare($remainder, $startDuration, $startDt) >= 0) { #Remainder is bigger than the starting hours, so we have plenty of time today to fill the worktime starting from the given startTime
-        return $startDt;
+        return ($startDt, undef);
     }
     #If we started working on the starting time, and we cannot fit the whole workday duration to the current day. So we adjust the starting time to an earlier time.
-    $remainder->subtract($startDuration);
-    $startDt->add_duration($remainder); #Remainder is negative, because it has got $startDuration subtracted from it
+    $startDuration->subtract($remainder);
+    $l->trace("$dayYMD -> Rewinding \$startDt to fit the whole workday ".RMS::Dates::formatDurationHMS($duration)." from ".$startDt->hms().' by '.RMS::Dates::formatDurationHMS($startDuration)) if $l->is_trace();
+    $startDt->subtract_duration($startDuration);
     $startDt->subtract_duration(DateTime::Duration->new(seconds => 1)); #remove one minute from midnight so $endDt is not 00:00:00 but 23:59:59 instead
-    return $startDt;
+    return ($startDt, $startDuration);
 }
 
 =head2 $class->_verifyEndTime
@@ -152,19 +177,20 @@ sub _verifyStartTime {
 End time defaults to $startTime + workday duration, or the one given
 If the given workday duration cannot fit between the given start time and the given end time,
   a comment !END overflow HH:MM:SS! is appended to the workday comments.
-@RETURNS (DateTime, $overflow);
+@RETURNS (DateTime, $overflowDuration);
 
 =cut
 
 sub _verifyEndTime {
-    my ($class, $day, $startDt, $endDt, $duration) = @_;
+    my ($class, $dayYMD, $startDt, $endDt, $duration) = @_;
 
     #Create default end time from start + duration
     unless ($endDt) {
         $endDt = $startDt->clone()->add_duration($duration);
+        $l->trace("$dayYMD -> Spoofing \$endDt") if $l->is_trace();
     }
     if ($endDt->isa('DateTime::Duration')) {
-        $endDt = DateTime::Format::MySQL->parse_datetime( "$day ".RMS::Dates::formatDurationHMS($endDt) );
+        $endDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD ".RMS::Dates::formatDurationHMS($endDt) );
     }
 
     #Check if workday duration fits between start and end.
@@ -173,13 +199,14 @@ sub _verifyEndTime {
     }
 
     #it didn't fit, push end time forward. _verifyStartTime() should make sure this doesn't push the ending date to the next day.
-    my $overflow = $startDt->clone()->add_duration($duration)->subtract_datetime($endDt);
+    my $overflowDuration = $startDt->clone()->add_duration($duration)->subtract_datetime($endDt);
+    $l->trace("$dayYMD -> Overflowing \$endDt from ".$endDt->hms().' by '.RMS::Dates::formatDurationHMS($overflowDuration)) if $l->is_trace();
     return ($startDt->clone()->add_duration($duration),
-            RMS::Dates::formatDurationHMS($overflow));
+            $overflowDuration);
 }
 
 sub _verifyBreaks {
-    my ($class, $day, $startDt, $endDt, $duration) = @_;
+    my ($class, $dayYMD, $startDt, $endDt, $duration) = @_;
 
     my $realDuration = $endDt->subtract_datetime($startDt);
     $realDuration->subtract($duration);

@@ -37,59 +37,63 @@ sub _fillMissingDays {
     }
 }
 
-subtest "_hoursToDuration", \&_hoursToDuration;
-sub _hoursToDuration {
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1')),       '+01:00:00', '+01:00:00');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('22')),      '+22:00:00', '+22:00:00');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.5')),     '+01:30:00', '+01:30:00');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.25')),    '+01:15:00', '+01:15:00');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.375')),   '+01:22:30', '+01:22:30');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('0.0025')),  '+00:00:09', '+00:00:09');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.00033')), '+01:00:01', '+01:00:01');
-    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('0.0000001')), '+00:00:01', '1e-07');
+subtest "hoursToDuration", \&hoursToDuration;
+sub hoursToDuration {
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1')),       '+01:00:00', '+01:00:00');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('22')),      '+22:00:00', '+22:00:00');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.5')),     '+01:30:00', '+01:30:00');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.25')),    '+01:15:00', '+01:15:00');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.375')),   '+01:22:30', '+01:22:30');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('0.0025')),  '+00:00:09', '+00:00:09');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.00033')), '+01:00:01', '+01:00:01');
+    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('0.0000001')), '+00:00:01', '1e-07');
+
+    is(RMS::Dates::formatDurationHMS(RMS::Dates::hoursToDuration('0.0025')),  '00:00:09', '00:00:09');
+    is(RMS::Dates::formatDurationHMS(RMS::Dates::hoursToDuration('1.00033')), '01:00:01', '01:00:01');
 }
 
 subtest "_verifyStartTime", \&_verifyStartTime;
 sub _verifyStartTime {
     my $_verifyStartTimeTest = sub {
         eval {
-            my ($expected, $start, $duration) = @_;
+            my ($expected, $start, $duration, $expectedUnderflow) = @_;
             my ($h, $m) = $duration =~ /(\d+)/g;
 
-            my ($day, $expectedDt, $stDt);
+            my ($day, $expectedDt, $stDt, $underflowDuration);
             $day = '2016-05-20';
             $expectedDt = DateTime::Format::MySQL->parse_datetime( "$day $expected" );
-            $stDt = RMS::Worklogs::Day->_verifyStartTime(
+            ($stDt, $underflowDuration) = RMS::Worklogs::Day->_verifyStartTime(
                             $day,
                             ($start) ? DateTime::Format::MySQL->parse_datetime( "$start" ) : undef,
                             DateTime::Duration->new(hours => $h, minutes => $m),
             );
 
             is($stDt->iso8601(), $expectedDt->iso8601(), ($start || 'undef   ')." => $expected using $duration");
+            is(RMS::Dates::formatDurationHMS($underflowDuration), $expectedUnderflow, 'Got the expected start time underflow');
         };
         if ($@) {
             ok(0, $@);
         }
     };
 
-    &$_verifyStartTimeTest('07:45:00', '2016-05-20 07:45:00', '08:00');
-    &$_verifyStartTimeTest('03:45:00', '2016-05-20 03:45:00', '20:15');
-    &$_verifyStartTimeTest('03:44:59', '2016-05-20 07:45:00', '20:15');
-    &$_verifyStartTimeTest('03:44:59', undef,                 '20:15');
-    &$_verifyStartTimeTest('00:00:00', '2016-05-19 23:30:00', '20:15');
+    &$_verifyStartTimeTest('07:45:00', '2016-05-20 07:45:00', '08:00', '00:00:00');
+    &$_verifyStartTimeTest('03:45:00', '2016-05-20 03:45:00', '20:15', '00:00:00');
+    &$_verifyStartTimeTest('03:44:59', '2016-05-20 07:45:00', '20:15', '04:00:00');
+    &$_verifyStartTimeTest('03:44:59', undef,                 '20:15', '04:15:00');
+    &$_verifyStartTimeTest('00:00:00', '2016-05-19 23:30:00', '20:15', '00:00:00');
 }
 
 subtest "_verifyEndTime", \&_verifyEndTime;
 sub _verifyEndTime {
     my $_verifyEndTimeTest = sub {
         eval {
-            my ($expected, $start, $end, $duration) = @_;
+            my ($expected, $start, $end, $duration, $expectedOverflow) = @_;
             my ($h, $m) = $duration =~ /(\d+)/g;
 
-            my ($day, $expectedDt, $stDt, $endDt);
+            my ($day, $expectedDt, $stDt, $endDt, $overflow);
             $day = '2016-05-20';
             $expectedDt = DateTime::Format::MySQL->parse_datetime( "$day $expected" );
-            $endDt = RMS::Worklogs::Day->_verifyEndTime(
+            ($endDt, $overflow) = RMS::Worklogs::Day->_verifyEndTime(
                             $day,
                             DateTime::Format::MySQL->parse_datetime( "$day $start" ),
                             ($end) ? DateTime::Format::MySQL->parse_datetime( "$day $end" ) : undef,
@@ -97,15 +101,16 @@ sub _verifyEndTime {
             );
 
             is($endDt->iso8601(), $expectedDt->iso8601(), ($end || 'undef   ')." => $expected using $duration");
+            is(RMS::Dates::formatDurationHMS($overflow), $expectedOverflow, 'Got the expected end time overflow');
         };
         if ($@) {
             ok(0, $@);
         }
     };
 
-    &$_verifyEndTimeTest('16:45:00', '07:45:00', '16:45:00', '08:00');
-    &$_verifyEndTimeTest('15:45:00', '07:45:00', undef     , '08:00');
-    &$_verifyEndTimeTest('17:45:00', '07:45:00', '10:00:00', '10:00');
+    &$_verifyEndTimeTest('16:45:00', '07:45:00', '16:45:00', '08:00', '00:00:00');
+    &$_verifyEndTimeTest('15:45:00', '07:45:00', undef     , '08:00', '00:00:00');
+    &$_verifyEndTimeTest('17:45:00', '07:45:00', '10:00:00', '10:00', '07:45:00');
 }
 
 subtest "_verifyBreaks", \&_verifyBreaks;
@@ -126,7 +131,7 @@ sub _verifyBreaks {
                             DateTime::Duration->new(hours => $dH, minutes => $dM, seconds => $dS || 0),
             );
 
-            is($dtF_hms->format_duration($breaks), $dtF_hms->format_duration($expectedDuration), "$start - $end using $duration => $expected");
+            is(RMS::Dates::formatDurationPHMS($breaks), RMS::Dates::formatDurationPHMS($expectedDuration), "$start - $end using $duration => $expected");
         };
         if ($@) {
             ok(0, $@);
@@ -149,7 +154,7 @@ sub simpleDaily {
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25},
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5},
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5},
         ];
     });
 
@@ -157,12 +162,8 @@ sub simpleDaily {
     my @k = sort keys %$days;
     is(scalar(keys(%$days)), 1, "1 days");
 
-    is($days->{$k[0]}->day(),              '2016-05-20',          "1st day");
-    is($days->{$k[0]}->start()->iso8601(), '2016-05-20T09:35:17', "1st start");
-    is($days->{$k[0]}->end()->iso8601(),   '2016-05-20T16:05:17', "1st end");
-    is($dtF_hms->format_duration($days->{$k[0]}->duration()), '+06:30:00', "1st duration");
-    is($dtF_hms->format_duration($days->{$k[0]}->breaks()),   '+00:00:00', "1st breaks");
-    is($dtF_hms->format_duration($days->{$k[0]}->overwork()), '-00:45:00', "1st overwork");
+    #      ($yms,  $day,           $startIso,             $endIso,           $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments)
+    testDay($k[0], $days->{$k[0]}, '2016-05-20T09:35:17', '2016-05-20T16:29:21', '+06:30:00', '+00:24:04', '-00:45:00', '+00:00:00', undef, undef, undef);
 }
 
 subtest "advancedDailyLogging", \&advancedDaily;
@@ -235,62 +236,17 @@ sub advancedDaily {
 
     my $days = RMS::Worklogs->new({user => 1})->asDays();
     my @k = sort keys %$days;
-    is(scalar(keys(%$days)), 8, "8 days");
+    is(scalar(@k), 8, "8 days");
 
-    is($days->{$k[0]}->day(),              '2015-06-11',          "2015-06-11");
-    is($days->{$k[0]}->start()->iso8601(), '2015-06-11T10:04:29', "2015-06-11 start");
-    is($days->{$k[0]}->end()->iso8601(),   '2015-06-11T18:34:30', "2015-06-11 end");
-    is($dtF_hms->format_duration($days->{$k[0]}->duration()), '+08:30:01', "2015-06-11 duration");
-    is($dtF_hms->format_duration($days->{$k[0]}->breaks()),   '+00:00:00', "2015-06-11 breaks");
-    is($dtF_hms->format_duration($days->{$k[0]}->overwork()), '+01:15:01', "2015-06-11 overwork");
-
-    is($days->{$k[1]}->day(),              '2015-11-03',          "2015-11-03 day");
-    is($days->{$k[1]}->start()->iso8601(), '2015-11-03T08:24:38', "2015-11-03 start");
-    is($days->{$k[1]}->end()->iso8601(),   '2015-11-03T18:48:14', "2015-11-03 end");
-    is($dtF_hms->format_duration($days->{$k[1]}->duration()), '+10:15:00', "2015-11-03 duration");
-    is($dtF_hms->format_duration($days->{$k[1]}->breaks()),   '+00:08:36', "2015-11-03 breaks");
-    is($dtF_hms->format_duration($days->{$k[1]}->overwork()), '+03:00:00', "2015-11-03 overwork");
-
-    is($days->{$k[2]}->day(),              '2015-11-04',          "2015-11-04 day");
-    is($days->{$k[2]}->start()->iso8601(), '2015-11-04T11:37:06', "2015-11-04 start");
-    is($days->{$k[2]}->end()->iso8601(),   '2015-11-04T19:36:48', "2015-11-04 end");
-    is($dtF_hms->format_duration($days->{$k[2]}->duration()), '+07:59:42', "2015-11-04 duration");
-    is($dtF_hms->format_duration($days->{$k[2]}->breaks()),   '+00:00:00', "2015-11-04 breaks");
-    is($dtF_hms->format_duration($days->{$k[2]}->overwork()), '+00:44:42', "2015-11-04 overwork");
-
-    is($days->{$k[3]}->day(),              '2016-04-26',          "2016-04-26 day");
-    is($days->{$k[3]}->start()->iso8601(), '2016-04-26T16:44:59', "2016-04-26 start");
-    is($days->{$k[3]}->end()->iso8601(),   '2016-04-26T23:59:59', "2016-04-26 end");
-    is($dtF_hms->format_duration($days->{$k[3]}->duration()), '+07:15:00', "2016-04-26 duration");
-    is($dtF_hms->format_duration($days->{$k[3]}->breaks()),   '+00:00:00', "2016-04-26 breaks");
-    is($dtF_hms->format_duration($days->{$k[3]}->overwork()), '+00:00:00', "2016-04-26 overwork");
-    is($days->{$k[4]}->day(),              '2016-04-27',          "2016-04-27 day");
-    is($days->{$k[4]}->start()->iso8601(), '2016-04-27T00:00:00', "2016-04-27 start");
-    is($days->{$k[4]}->end()->iso8601(),   '2016-04-27T19:36:21', "2016-04-27 end");
-    is($dtF_hms->format_duration($days->{$k[4]}->duration()), '+09:00:00', "2016-04-27 duration");
-    is($dtF_hms->format_duration($days->{$k[4]}->breaks()),   '+10:36:21', "2016-04-27 breaks");
-    is($dtF_hms->format_duration($days->{$k[4]}->overwork()), '+01:45:00', "2016-04-27 overwork");
-
-    is($days->{$k[5]}->day(),              '2016-05-20',          "2016-05-20 day");
-    is($days->{$k[5]}->start()->iso8601(), '2016-05-20T00:35:17', "2016-05-20 start");
-    is($days->{$k[5]}->end()->iso8601(),   '2016-05-20T16:05:17', "2016-05-20 end");
-    is($dtF_hms->format_duration($days->{$k[5]}->duration()), '+15:30:00', "2016-05-20 duration");
-    is($dtF_hms->format_duration($days->{$k[5]}->breaks()),   '+00:00:00', "2016-05-20 breaks");
-    is($dtF_hms->format_duration($days->{$k[5]}->overwork()), '+08:15:00', "2016-05-20 overwork");
-
-    is($days->{$k[6]}->day(),              '2016-05-21',          "2016-05-21 day");
-    is($days->{$k[6]}->start()->iso8601(), '2016-05-21T08:29:59', "2016-05-21 start");
-    is($days->{$k[6]}->end()->iso8601(),   '2016-05-21T23:59:59', "2016-05-21 end");
-    is($dtF_hms->format_duration($days->{$k[6]}->duration()), '+15:30:00', "2016-05-21 duration");
-    is($dtF_hms->format_duration($days->{$k[6]}->breaks()),   '+00:00:00', "2016-05-21 breaks");
-    is($dtF_hms->format_duration($days->{$k[6]}->overwork()), '+08:15:00', "2016-05-21 overwork");
-
-    is($days->{$k[7]}->day(),              '2016-09-20',          "2016-09-20 day");
-    is($days->{$k[7]}->start()->iso8601(), '2016-09-20T12:49:45', "2016-09-20 start");
-    is($days->{$k[7]}->end()->iso8601(),   '2016-09-20T18:44:42', "2016-09-20 end");
-    is($dtF_hms->format_duration($days->{$k[7]}->duration()), '+05:54:57', "2016-09-20 duration");
-    is($dtF_hms->format_duration($days->{$k[7]}->breaks()),   '-00:00:01', "2016-09-20 allow -1s break");
-    is($dtF_hms->format_duration($days->{$k[7]}->overwork()), '-01:20:03', "2016-09-20 overwork");
+    #      ($yms,  $day,           $startIso,             $endIso,           $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments)
+    testDay($k[0], $days->{$k[0]}, '2015-06-11T10:04:29', '2015-06-11T18:34:30', '+08:30:01', '+00:00:00', '+01:15:01', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
+    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:24:38', '2015-11-03T18:48:14', '+10:15:00', '+00:08:36', '+03:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:37:06', '2015-11-04T19:36:48', '+07:59:42', '+00:00:00', '+00:44:42', '+00:38:58',   undef,     undef,   '!END overflow 00:38:58!');
+    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:44:59', '2016-04-26T23:59:59', '+07:15:00', '+00:00:00', '+00:00:00', '+00:24:34',   undef,     undef,   '!START underflow 04:49:42!!END overflow 00:24:34!');
+    testDay($k[4], $days->{$k[4]}, '2016-04-27T00:00:00', '2016-04-27T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:35:17', '2016-05-20T16:05:17', '+15:30:00', '+00:00:00', '+08:15:00', '+00:35:56',   undef,     undef,   '!END overflow 00:35:56!');
+    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+00:00:00',   undef,     undef,   '!START underflow 02:08:29!');
+    testDay($k[7], $days->{$k[7]}, '2016-09-20T12:49:45', '2016-09-20T18:44:42', '+05:54:57', '-00:00:01', '-01:20:03', '+00:38:17',   undef,     undef,   '!END overflow 00:38:17!');
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;
@@ -365,3 +321,18 @@ sub simpleOdsExport {
 }
 
 done_testing();
+
+
+sub testDay {
+    my ($yms, $day, $startIso, $endIso, $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments) = @_;
+    is($day->day(),              $yms,          $yms);
+    is($day->start()->iso8601(), $startIso, "$yms start");
+    is($day->end()->iso8601(),   $endIso,   "$yms end");
+    is(RMS::Dates::formatDurationPHMS($day->duration()), $durationPHMS, "$yms duration");
+    is(RMS::Dates::formatDurationPHMS($day->breaks()),   $breaksPHMS,   "$yms breaks");
+    is(RMS::Dates::formatDurationPHMS($day->overwork()), $overworkPHMS, "$yms overwork");
+    is(RMS::Dates::formatDurationPHMS($day->overflow()), $overflowPHMS, "$yms overflow");
+    is($day->benefits, $benefits, "$yms benefits");
+    is($day->remote,   $remote,   "$yms remote");
+    is($day->comments, $comments, "$yms comments");
+}

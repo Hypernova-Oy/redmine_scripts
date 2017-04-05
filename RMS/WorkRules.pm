@@ -16,38 +16,36 @@ sub new {
 
   my $self = {params => $params};
   bless($self, $class);
+
   return $self;
 }
 
-=head2 getDayLength
+=head2 specialIssues
 
-  my $float = $wr->getDayLength($dateTime);
+Marks some issue identifiers to have special purpose, like vacation, paid-leave, sick-leave, ...
+Check these from your Redmine installation.
+
+=cut
+
+my $specialIssues = {
+  vacationIssueId     => 9,
+  paidLeaveIssueId    => 1618,
+  nonPaidLeaveIssueId => 1514,
+  sickLeaveIssueId    => 622,
+};
+
+=head2 getDayLengthDt
+
+  my $duration = $wr->getDayLengthDt($dateTime);
 
 How many hours we need to work every day.
-@RETURNS Float, Eg. 7.35 #base 100 instead of 60
+@RETURNS DateTime::Duration
 
 =cut
 
 my $dayLength20170201 = DateTime->new(year => 2017, month => 2, day => 1);
 my $dayLength0715 = DateTime::Duration->new(hours => 7, minutes => 15);
 my $dayLength0721 = DateTime::Duration->new(hours => 7, minutes => 21);
-sub getDayLength {
-  my ($self, $dt) = @_;
-
-  if (DateTime->compare($dt, $dayLength20170201) < 1) { #Pre 2017-02-01
-    return 7.25;
-  }
-  else {
-    return 7.35;
-  }
-}
-
-=head2 getDayLengthDt
-
-@RETURNS DateTime::Duration
-
-=cut
-
 sub getDayLengthDt {
   my ($self, $dt) = @_;
 
@@ -57,6 +55,19 @@ sub getDayLengthDt {
   else {
     return $dayLength0721;
   }
+}
+
+=head2 isVacation
+
+  if ($wr->isVacation($issueId || 101)) {
+    #do stuff
+  }
+
+=cut
+
+sub isVacation {
+  shift;
+  return 1 if $specialIssues->{vacationIssueId} == shift;
 }
 
 1;

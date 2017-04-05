@@ -14,6 +14,9 @@ use RMS::Worklogs::Day;
 use RMS::Worklogs::Exporter;
 use RMS::Users;
 
+use RMS::Logger;
+my $l = bless({}, 'RMS::Logger');
+
 sub new {
     my ($class, $params) = @_;
 
