@@ -15,6 +15,7 @@ my $dtF_hms = DateTime::Format::Duration->new(
                     base => DateTime->now(),
                 );
 
+use RMS::Dates;
 use RMS::Worklogs;
 
 subtest "_fillMissingDays", \&_fillMissingDays;
@@ -38,14 +39,14 @@ sub _fillMissingDays {
 
 subtest "_hoursToDuration", \&_hoursToDuration;
 sub _hoursToDuration {
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('1')),       '+01:00:00', '+01:00:00');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('22')),      '+22:00:00', '+22:00:00');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('1.5')),     '+01:30:00', '+01:30:00');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('1.25')),    '+01:15:00', '+01:15:00');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('1.375')),   '+01:22:30', '+01:22:30');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('0.0025')),  '+00:00:09', '+00:00:09');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('1.00033')), '+01:00:01', '+01:00:01');
-    is($dtF_hms->format_duration(RMS::Worklogs::_hoursToDuration('0.0000001')), '+00:00:01', '1e-07');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1')),       '+01:00:00', '+01:00:00');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('22')),      '+22:00:00', '+22:00:00');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.5')),     '+01:30:00', '+01:30:00');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.25')),    '+01:15:00', '+01:15:00');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.375')),   '+01:22:30', '+01:22:30');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('0.0025')),  '+00:00:09', '+00:00:09');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('1.00033')), '+01:00:01', '+01:00:01');
+    is($dtF_hms->format_duration(RMS::Dates::hoursToDuration('0.0000001')), '+00:00:01', '1e-07');
 }
 
 subtest "_verifyStartTime", \&_verifyStartTime;
@@ -58,7 +59,7 @@ sub _verifyStartTime {
             my ($day, $expectedDt, $stDt);
             $day = '2016-05-20';
             $expectedDt = DateTime::Format::MySQL->parse_datetime( "$day $expected" );
-            $stDt = RMS::Worklogs->_verifyStartTime(
+            $stDt = RMS::Worklogs::Day->_verifyStartTime(
                             $day,
                             ($start) ? DateTime::Format::MySQL->parse_datetime( "$start" ) : undef,
                             DateTime::Duration->new(hours => $h, minutes => $m),
@@ -88,7 +89,7 @@ sub _verifyEndTime {
             my ($day, $expectedDt, $stDt, $endDt);
             $day = '2016-05-20';
             $expectedDt = DateTime::Format::MySQL->parse_datetime( "$day $expected" );
-            $endDt = RMS::Worklogs->_verifyEndTime(
+            $endDt = RMS::Worklogs::Day->_verifyEndTime(
                             $day,
                             DateTime::Format::MySQL->parse_datetime( "$day $start" ),
                             ($end) ? DateTime::Format::MySQL->parse_datetime( "$day $end" ) : undef,
@@ -118,7 +119,7 @@ sub _verifyBreaks {
             my ($day, $expectedDuration, $stDt, $breaks);
             $day = '2016-05-20';
             $expectedDuration = DateTime::Duration->new(hours => $eH, minutes => $eM, seconds => $eS || 0);
-            $breaks = RMS::Worklogs->_verifyBreaks(
+            $breaks = RMS::Worklogs::Day->_verifyBreaks(
                             $day,
                             DateTime::Format::MySQL->parse_datetime( "$day $start" ),
                             ($end) ? DateTime::Format::MySQL->parse_datetime( "$day $end" ) : undef,
