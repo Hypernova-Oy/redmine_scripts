@@ -27,7 +27,7 @@ Check these from your Redmine installation.
 
 =cut
 
-my $specialIssues = {
+our $specialIssues = {
   vacationIssueId     => 9,
   paidLeaveIssueId    => 1618,
   nonPaidLeaveIssueId => 1514,

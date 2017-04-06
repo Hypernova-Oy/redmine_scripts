@@ -6,12 +6,12 @@ use Carp;
 use DateTime::Format::Duration;
 my $dtF_phms = DateTime::Format::Duration->new(
                     pattern => '%p%H:%M:%S',
-                    normalise => 'ISO',
+#                    normalise => 'ISO',
                     base => DateTime->now(),
                 );
 my $dtF_hms = DateTime::Format::Duration->new(
                     pattern => '%H:%M:%S',
-                    normalise => 'ISO',
+#                    normalise => 'ISO',
                     base => DateTime->now(),
                 );
 

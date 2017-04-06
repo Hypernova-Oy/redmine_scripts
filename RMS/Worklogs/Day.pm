@@ -2,9 +2,11 @@ package RMS::Worklogs::Day;
 
 use Modern::Perl;
 use Carp;
+use Params::Validate qw(:all);
 
 use DateTime::Duration;
 
+use RMS::Validations;
 use RMS::Dates;
 use RMS::Worklogs::Tags;
 use RMS::WorkRules;
@@ -12,26 +14,65 @@ use RMS::WorkRules;
 use RMS::Logger;
 my $l = bless({}, 'RMS::Logger');
 
+=head2 new
+
+    RMS::Worklogs::Day->new({
+      start => DateTime,                 #When the workday started
+      end => DateTime,                   #When the workday ended
+      breaks => DateTime::Duration,      #How long breaks have been held in total
+      duration => DateTime::Duration,    #How long the workday was?
+      overflow => DateTime::Duration,    #How much was the ending time forcefully delayed?
+      underflow => $underflowDuration,   #How much was the starting time forcefully earlied?
+      benefits => 1 || undef,            #Should we calculate extra work bonuses for this day?
+      remote => 1 || undef,              #Was this day a remote working day?
+      comments => "Freetext",            #All the worklog comments for the day
+    });
+
+=cut
+
+our %validations = (
+    start =>     {isa => 'DateTime'},
+    end =>       {isa => 'DateTime'},
+    breaks =>    {isa => 'DateTime::Duration'},
+    duration =>  {isa => 'DateTime::Duration'},
+    benefits =>  {type => SCALAR|UNDEF},
+    remote =>    {type => SCALAR|UNDEF},
+    overwork =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    overworkReimbursed =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    overworkReimbursedBy => {type => SCALAR|UNDEF, depends => 'overworkReimbursed'},
+    overworkAccumulation => {isa => 'DateTime::Duration'},
+    overflow =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    underflow => {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    comments =>  {type => SCALAR|UNDEF},
+);
 sub new {
-    my ($class, $startDt, $endDt, $breakDuration, $workdayDuration, $overflowDuration, $underflowDuration, $benefits, $remote, $comments) = @_;
+    my ($class) = shift;
+    my $params = validate(@_, \%validations);
 
     #If the end time overflows because workday duration is too long, append a warning to comments
     #eg. "!END overflow 00:33:12!A typical comment."
-    $comments = '!END overflow '.RMS::Dates::formatDurationHMS($overflowDuration).'!'.($comments ? $comments : '') if ($overflowDuration);
-    $comments = '!START underflow '.RMS::Dates::formatDurationHMS($underflowDuration).'!'.($comments ? $comments : '') if ($underflowDuration);
+    $params->{comments} = '!END overflow '.RMS::Dates::formatDurationHMS($params->{overflow}).'!'.($params->{comments} ? $params->{comments} : '') if ($params->{overflow});
+    $params->{comments} = '!START underflow '.RMS::Dates::formatDurationHMS($params->{underflow}).'!'.($params->{comments} ? $params->{comments} : '') if ($params->{underflow});
 
-    my $dayLength = RMS::WorkRules->new()->getDayLengthDt($startDt);
+    my $dayLength = RMS::WorkRules->new()->getDayLengthDt($params->{start});
+    my $overworkDuration = $params->{duration}->clone->subtract($dayLength);
+    my $overworkAccumulation = $params->{overworkAccumulation}->clone()->add_duration($overworkDuration);
+    $overworkAccumulation->subtract_duration($params->{overworkReimbursed}) if $params->{overworkReimbursed};
     my $self = {
-        start => $startDt,
-        end => $endDt,
-        breaks => $breakDuration,
-        duration => $workdayDuration,
-        benefits => $benefits,
-        remote => $remote,
-        overwork => $workdayDuration->clone->subtract($dayLength),
-        overflow => $overflowDuration,
-        underflow => $underflowDuration,
-        comments => $comments,
+        ymd => $params->{start}->ymd(),
+        start => $params->{start},
+        end => $params->{end},
+        breaks => $params->{breaks},
+        duration => $params->{duration},
+        benefits => $params->{benefits},
+        remote => $params->{remote},
+        overwork => $overworkDuration,
+        overworkReimbursed => $params->{overworkReimbursed},
+        overworkReimbursedBy => $params->{overworkReimbursedBy},
+        overworkAccumulation => $overworkAccumulation,
+        overflow => $params->{overflow},
+        underflow => $params->{underflow},
+        comments => $params->{comments},
     };
 
     bless($self, $class);
@@ -43,15 +84,17 @@ sub new {
 Given a bunch of worklogs for a single day, from the Redmine DB,
 a flattened day-representation of the events happened within those worklog entries is returned.
 
+
+
 =cut
 
 sub newFromWorklogs {
-    my ($class, $dayYMD, $worklogs) = @_;
+    my ($class, $dayYMD, $overworkAccumulation, $worklogs) = @_;
     unless ($dayYMD =~ /^\d\d\d\d-\d\d-\d\d$/) {
         confess "\$day '$dayYMD' is not a proper YYYY-MM-DD date";
     }
 
-    my ($startDt, $endDt, $breaksDuration, $workdayDuration, $benefits, $remote, $overflowDuration, $underflowDuration);
+    my ($startDt, $endDt, $breaksDuration, $workdayDuration, $benefits, $remote, $overflowDuration, $underflowDuration, $overworkReimbursed, $overworkReimbursedBy);
     my @wls = sort {$a->{created_on} cmp $b->{created_on}} @$worklogs; #Sort from morning to evening, so first index is the earliest log entry
 
     ##Flatten all comments so tags can be looked for
@@ -66,7 +109,7 @@ sub newFromWorklogs {
         $l->trace("$dayYMD -> Duration grows to ".RMS::Dates::formatDurationHMS($workdayDuration)) if $l->is_trace();
     }
     my $comments = join(' ', @comments);
-    ($benefits, $remote, $startDt, $endDt, $comments) = RMS::Worklogs::Tags::parseTags($comments);
+    ($benefits, $remote, $startDt, $endDt, $overworkReimbursed, $overworkReimbursedBy, $comments) = RMS::Worklogs::Tags::parseTags($comments);
 
 
     #Hope to find some meaningful start time
@@ -87,9 +130,18 @@ sub newFromWorklogs {
     ($endDt, $overflowDuration) = $class->_verifyEndTime($dayYMD, $startDt, $endDt, $workdayDuration);
     $breaksDuration = $class->_verifyBreaks($dayYMD, $startDt, $endDt, $workdayDuration);
 
-    return RMS::Worklogs::Day->new($startDt, $endDt, $breaksDuration, $workdayDuration, $overflowDuration, $underflowDuration, $benefits, $remote, $comments);
+    return RMS::Worklogs::Day->new({
+        start => $startDt, end => $endDt, breaks => $breaksDuration, duration => $workdayDuration,
+        overflow => $overflowDuration, underflow => $underflowDuration, benefits => $benefits,
+        remote => $remote, comments => $comments,
+        overworkReimbursed => $overworkReimbursed, overworkReimbursedBy => $overworkReimbursedBy,
+        overworkAccumulation => $overworkAccumulation,
+    });
 }
 
+sub ymd {
+    return shift->{ymd};
+}
 sub day {
     return shift->start->ymd('-');
 }
@@ -107,6 +159,15 @@ sub breaks {
 }
 sub overwork {
     return shift->{overwork};
+}
+sub overworkAccumulation {
+    return shift->{overworkAccumulation};
+}
+sub overworkReimbursed {
+    return shift->{overworkReimbursed};
+}
+sub overworkReimbursedBy {
+    return shift->{overworkReimbursedBy};
 }
 sub overflow {
     return shift->{overflow};

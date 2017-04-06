@@ -35,7 +35,7 @@ sub getWorklogs {
 
     my $user = RMS::Users::getUser($self->param('user'));
     my $dbh = RMS::Context->dbh();
-    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments FROM time_entries WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
+    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id FROM time_entries WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
     $sth->execute($user->{id});
     $self->{worklogs} = $sth->fetchall_arrayref({});
     return $self->{worklogs};
@@ -119,10 +119,12 @@ sub _calculateDays {
     my ($self, $dailies) = @_;
 
     my %days;
+    my $prevOverworkAccumulation;
     foreach my $ymd (sort keys %$dailies) {
         my $worklogs = $dailies->{$ymd};
-        my $day = RMS::Worklogs::Day->newFromWorklogs($ymd, $worklogs);
+        my $day = RMS::Worklogs::Day->newFromWorklogs($ymd, $prevOverworkAccumulation || DateTime::Duration->new(), $worklogs);
         $days{ $day->day() } = $day;
+        $prevOverworkAccumulation = $day->overworkAccumulation();
     }
     return \%days;
 }
