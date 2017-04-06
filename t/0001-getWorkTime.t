@@ -18,8 +18,8 @@ my $dtF_hms = DateTime::Format::Duration->new(
 use RMS::Dates;
 use RMS::Worklogs;
 
-subtest "_fillMissingDays", \&_fillMissingDays;
-sub _fillMissingDays {
+subtest "fillMissingYMDs", \&fillMissingYMDs;
+sub fillMissingYMDs {
     my $ymds = [
         '2016-05-01',
         '2016-05-02',
@@ -28,7 +28,7 @@ sub _fillMissingDays {
         '2016-05-09',
         '2016-05-11',
     ];
-    $ymds = RMS::Worklogs->_fillMissingDays($ymds);
+    $ymds = RMS::Worklogs::Exporter->fillMissingYMDs($ymds);
     is(scalar(@$ymds), 11, '11 days');
 
     my $i=0;
@@ -39,17 +39,20 @@ sub _fillMissingDays {
 
 subtest "hoursToDuration", \&hoursToDuration;
 sub hoursToDuration {
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1')),       '+01:00:00', '+01:00:00');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('22')),      '+22:00:00', '+22:00:00');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.5')),     '+01:30:00', '+01:30:00');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.25')),    '+01:15:00', '+01:15:00');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.375')),   '+01:22:30', '+01:22:30');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('0.0025')),  '+00:00:09', '+00:00:09');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('1.00033')), '+01:00:01', '+01:00:01');
-    is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration('0.0000001')), '+00:00:01', '1e-07');
-
-    is(RMS::Dates::formatDurationHMS(RMS::Dates::hoursToDuration('0.0025')),  '00:00:09', '00:00:09');
-    is(RMS::Dates::formatDurationHMS(RMS::Dates::hoursToDuration('1.00033')), '01:00:01', '01:00:01');
+    my $testSub = sub {
+        my ($dd, $phms, $testName) = @_;
+        is(RMS::Dates::formatDurationPHMS(RMS::Dates::hoursToDuration($dd)), $phms, $phms || $testName);
+    };
+    &$testSub('1',         '+01:00:00');
+    &$testSub('22',        '+22:00:00');
+    &$testSub('1.5',       '+01:30:00');
+    &$testSub('1.25',      '+01:15:00');
+    &$testSub('1.375',     '+01:22:30');
+    &$testSub('0.0025',    '+00:00:09');
+    &$testSub('1.00033',   '+01:00:02');
+    &$testSub('0.0000001', '+00:00:01', '1e-07');
+    &$testSub('0.0025',    '+00:00:09');
+    &$testSub('1.00033',   '+01:00:02');
 }
 
 subtest "_verifyStartTime", \&_verifyStartTime;
@@ -149,12 +152,12 @@ sub simpleDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         return [
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 1.5},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 1.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
         ];
     });
 
@@ -162,8 +165,8 @@ sub simpleDaily {
     my @k = sort keys %$days;
     is(scalar(keys(%$days)), 1, "1 days");
 
-    #      ($yms,  $day,           $startIso,             $endIso,           $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments)
-    testDay($k[0], $days->{$k[0]}, '2016-05-20T09:35:17', '2016-05-20T16:29:21', '+06:30:00', '+00:24:04', '-00:45:00', '+00:00:00', undef, undef, undef);
+    #      ($yms,  $day,           $startIso,             $endIso,         $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
+    testDay($k[0], $days->{$k[0]}, '2016-05-20T09:35:17', '2016-05-20T16:29:21', '+06:30:00', '+00:24:04', '-00:45:00', '+00:00:00', '+00:00:00', undef, undef, undef);
 }
 
 subtest "advancedDailyLogging", \&advancedDaily;
@@ -171,66 +174,66 @@ sub advancedDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         return [
-            {spent_on => '2015-06-11', created_on => '2015-06-11 10:34:29', hours => 0.5}, #This day had a problem with exponentially small 'hours'
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:26:06', hours => 0.75},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:28:11', hours => 0.25},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:10:37', hours => 3},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:11:59', hours => 2},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:13:46', hours => 2},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:14:16', hours => 0.0000001},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 10:34:29', hours => 0.5,  issue_id => 9999, activity => ''}, #This day had a problem with exponentially small 'hours'
+            {spent_on => '2015-06-11', created_on => '2015-06-11 11:26:06', hours => 0.75, issue_id => 9999, activity => ''},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 11:28:11', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:10:37', hours => 3,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:11:59', hours => 2,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:13:46', hours => 2,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:14:16', hours => 0.0000001, issue_id => 9999, activity => ''},
 
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:54:38', hours => 0.5},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:55:45', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 09:50:08', hours => 1},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:38:01', hours => 1},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:41:22', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:43:10', hours => 2.5},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:25:20', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:36:43', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:20', hours => 1},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:51', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:04:17', hours => 0.25},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:05:28', hours => 2},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:48:14', hours => 0.75},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 08:54:38', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 08:55:45', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 09:50:08', hours => 1,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:38:01', hours => 1,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:41:22', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:43:10', hours => 2.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 14:25:20', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 14:36:43', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:20', hours => 1,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:51', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:04:17', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:05:28', hours => 2,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:48:14', hours => 0.75, issue_id => 9999, activity => ''},
 
-            {spent_on => '2015-11-04', created_on => '2015-11-04 11:59:36', hours => 0.375}, #This day had a strange bug in 'breaks'-calculus
-            {spent_on => '2015-11-04', created_on => '2015-11-04 12:00:00', hours => 0.37},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 16:59:43', hours => 0.25},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:12', hours => 4},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:20', hours => 1},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:24:45', hours => 0.25},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 11:59:36', hours => 0.375,issue_id => 9999, activity => ''}, #This day had a strange bug in 'breaks'-calculus
+            {spent_on => '2015-11-04', created_on => '2015-11-04 12:00:00', hours => 0.37, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 16:59:43', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:12', hours => 4,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:20', hours => 1,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:24:45', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1,    issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75, issue_id => 9999, activity => ''},
 
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:34:42', hours => 2},    #Bugfix where these days yield strange hours
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:07', hours => 3},
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:25', hours => 2.25}, #end time - start time = -15:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 00:20:48', hours => 0.75}, #end time - start time = 00:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 15:29:40', hours => 4},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:02:33', hours => 0.5},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:34:53', hours => 0.6},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:25:28', hours => 1.75},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:26:02', hours => 0.2},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:30:00', hours => 0.95},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:36:21', hours => 0.25},
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:34:42', hours => 2,    issue_id => 9999, activity => ''},    #Bugfix where these days yield strange hours
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:07', hours => 3,    issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:25', hours => 2.25, issue_id => 9999, activity => ''}, #end time - start time = -15:00
+            {spent_on => '2016-04-27', created_on => '2016-04-27 00:20:48', hours => 0.75, issue_id => 9999, activity => ''}, #end time - start time = 00:00
+            {spent_on => '2016-04-27', created_on => '2016-04-27 15:29:40', hours => 4,    issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 16:02:33', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 16:34:53', hours => 0.6,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 18:25:28', hours => 1.75, issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 18:26:02', hours => 0.2,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 19:30:00', hours => 0.95, issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 19:36:21', hours => 0.25, issue_id => 9999, activity => ''},
 
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5},  #Dangerous unsyncronized worklog entries
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5, issue_id => 9999, activity => ''},  #Dangerous unsyncronized worklog entries
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
 
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5},  #Dangerous unsyncronized worklog entries fixed days later
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25},
-            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5},
-            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},  #Dangerous unsyncronized worklog entries fixed days later
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5, issue_id => 9999, activity => ''},
 
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5}, #Bug: Negative break duration?
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666},
-            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25},
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5,    issue_id => 9999, activity => ''}, #Bug: Negative break duration?
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666,issue_id => 9999, activity => ''},
+            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25, issue_id => 9999, activity => ''},
         ];
     });
 
@@ -238,15 +241,15 @@ sub advancedDaily {
     my @k = sort keys %$days;
     is(scalar(@k), 8, "8 days");
 
-    #      ($yms,  $day,           $startIso,             $endIso,           $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments)
-    testDay($k[0], $days->{$k[0]}, '2015-06-11T10:04:29', '2015-06-11T18:34:30', '+08:30:01', '+00:00:00', '+01:15:01', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
-    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:24:38', '2015-11-03T18:48:14', '+10:15:00', '+00:08:36', '+03:00:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:37:06', '2015-11-04T19:36:48', '+07:59:42', '+00:00:00', '+00:44:42', '+00:38:58',   undef,     undef,   '!END overflow 00:38:58!');
-    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:44:59', '2016-04-26T23:59:59', '+07:15:00', '+00:00:00', '+00:00:00', '+00:24:34',   undef,     undef,   '!START underflow 04:49:42!!END overflow 00:24:34!');
-    testDay($k[4], $days->{$k[4]}, '2016-04-27T00:00:00', '2016-04-27T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:35:17', '2016-05-20T16:05:17', '+15:30:00', '+00:00:00', '+08:15:00', '+00:35:56',   undef,     undef,   '!END overflow 00:35:56!');
-    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+00:00:00',   undef,     undef,   '!START underflow 02:08:29!');
-    testDay($k[7], $days->{$k[7]}, '2016-09-20T12:49:45', '2016-09-20T18:44:42', '+05:54:57', '-00:00:01', '-01:20:03', '+00:38:17',   undef,     undef,   '!END overflow 00:38:17!');
+    #      ($yms,  $day,           $startIso,             $endIso,       $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
+    testDay($k[0], $days->{$k[0]}, '2015-06-11T10:04:29', '2015-06-11T18:34:30', '+08:30:01', '+00:00:00', '+01:15:01', '+01:15:01', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
+    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:24:38', '2015-11-03T18:48:14', '+10:15:00', '+00:08:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:37:06', '2015-11-04T19:36:48', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:38:58',   undef,     undef,   '!END overflow 00:38:58!');
+    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:44:59', '2016-04-26T23:59:59', '+07:15:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:24:34',   undef,     undef,   '!START underflow 04:49:42!!END overflow 00:24:34!');
+    testDay($k[4], $days->{$k[4]}, '2016-04-27T00:00:00', '2016-04-27T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:35:17', '2016-05-20T16:05:17', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:35:56',   undef,     undef,   '!END overflow 00:35:56!');
+    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 02:08:29!');
+    testDay($k[7], $days->{$k[7]}, '2016-09-20T12:49:45', '2016-09-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!');
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;
@@ -254,10 +257,10 @@ sub simpleCsvExport {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         return [
-            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2},
-            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2},
-            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
-            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2, issue_id => 9999},
+            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2, issue_id => 9999},
+            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999},
+            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999},
         ];
     });
     my ($days, $csv, $fh, $row);
@@ -307,10 +310,10 @@ sub simpleOdsExport {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         return [
-            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2},
-            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2},
-            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
-            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999, activity => ''},
         ];
     });
     my ($days, $csv, $fh, $row);
@@ -324,13 +327,14 @@ done_testing();
 
 
 sub testDay {
-    my ($yms, $day, $startIso, $endIso, $durationPHMS, $breaksPHMS, $overworkPHMS, $overflowPHMS, $benefits, $remote, $comments) = @_;
+    my ($yms, $day, $startIso, $endIso, $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments) = @_;
     is($day->day(),              $yms,          $yms);
     is($day->start()->iso8601(), $startIso, "$yms start");
     is($day->end()->iso8601(),   $endIso,   "$yms end");
     is(RMS::Dates::formatDurationPHMS($day->duration()), $durationPHMS, "$yms duration");
     is(RMS::Dates::formatDurationPHMS($day->breaks()),   $breaksPHMS,   "$yms breaks");
     is(RMS::Dates::formatDurationPHMS($day->overwork()), $overworkPHMS, "$yms overwork");
+    is(RMS::Dates::formatDurationPHMS($day->dailyOverwork1()), $dailyOverwork1, "$yms overwork");
     is(RMS::Dates::formatDurationPHMS($day->overflow()), $overflowPHMS, "$yms overflow");
     is($day->benefits, $benefits, "$yms benefits");
     is($day->remote,   $remote,   "$yms remote");

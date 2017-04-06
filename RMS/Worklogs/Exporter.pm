@@ -12,6 +12,7 @@ use DateTime::Format::Duration;
 use DateTime::Format::Strptime;
 use ODF::lpOD;
 
+use RMS::Worklogs::Day;
 use RMS::Logger;
 my $l = bless({}, 'RMS::Logger');
 
@@ -33,6 +34,8 @@ my $ddF_hms = DateTime::Format::Duration->new(
                     base => DateTime->now(),
                 );
 
+my $defaultTime = 'PT00H00M00S' || '';
+
 sub new {
   my ($class, $params) = @_;
 
@@ -48,9 +51,8 @@ sub new {
 
 sub asOds {
   my ($self) = @_;
-  my $days = $self->{worklogDays};
+  my $days = $self->fillMissingDays( $self->{worklogDays} );
   my @dates = sort keys %{$days};
-  my $dates = $self->_fillMissingDays(\@dates);
 
   my $rowsPerMonth = 40;
 
@@ -66,7 +68,7 @@ sub asOds {
   ##Make sure the _data_-sheet is big enough (but not too big)
   #We put each day in monthly chunks to the _data_-sheet with ample spacing between months.
   #So roughly 40 rows per months should do it cleanly.
-  my ($neededHeight, $neededWidth) = ($rowsPerMonth*12, 20);
+  my ($neededHeight, $neededWidth) = ($rowsPerMonth*12, 21);
   my ($height, $width) = $t->get_size();
   if ($height < $neededHeight) {
     $l->debug("Base .ods '".$self->{baseOds}."' is lower '$height' than needed '$neededHeight'") if $l->is_debug();
@@ -89,7 +91,7 @@ sub asOds {
   my $rowNumber = 0;
   my $rowPointer = \$rowNumber;
 
-  foreach my $ymd (@$dates) {
+  foreach my $ymd (@dates) {
     my $day = $days->{$ymd};
     my ($y, $m, $d) = $ymd =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
     #Check if the month changes, so we reorient the pointer
@@ -127,15 +129,27 @@ sub _startMonth {
 
   my $c;
   #            row,       col, value, formatter
-  $c = $t->get_cell($$rowPointer, 0);$c->set_type('string');$c->set_value('day');
-  $c = $t->get_cell($$rowPointer, 1);$c->set_type('string');$c->set_value('strt');
-  $c = $t->get_cell($$rowPointer, 2);$c->set_type('string');$c->set_value('end');
-  $c = $t->get_cell($$rowPointer, 3);$c->set_type('string');$c->set_value('brk');
-  $c = $t->get_cell($$rowPointer, 4);$c->set_type('string');$c->set_value('+/-');
-  $c = $t->get_cell($$rowPointer, 5);$c->set_type('string');$c->set_value('dur');
-  $c = $t->get_cell($$rowPointer, 6);$c->set_type('string');$c->set_value('cum');
-  $c = $t->get_cell($$rowPointer, 7);$c->set_type('string');$c->set_value('rmt?');
-  $c = $t->get_cell($$rowPointer, 8);$c->set_type('string');$c->set_value('bnft?');
+  $c = $t->get_cell($$rowPointer,  0);$c->set_type('string');$c->set_value('day');
+  $c = $t->get_cell($$rowPointer,  1);$c->set_type('string');$c->set_value('start');
+  $c = $t->get_cell($$rowPointer,  2);$c->set_type('string');$c->set_value('end');
+  $c = $t->get_cell($$rowPointer,  3);$c->set_type('string');$c->set_value('break');
+  $c = $t->get_cell($$rowPointer,  4);$c->set_type('string');$c->set_value('+/-');
+  $c = $t->get_cell($$rowPointer,  5);$c->set_type('string');$c->set_value('duration');
+  $c = $t->get_cell($$rowPointer,  6);$c->set_type('string');$c->set_value('accumulation');
+  $c = $t->get_cell($$rowPointer,  7);$c->set_type('string');$c->set_value('remote?');
+  $c = $t->get_cell($$rowPointer,  8);$c->set_type('string');$c->set_value('benefits?');
+  $c = $t->get_cell($$rowPointer,  9);$c->set_type('string');$c->set_value('vacation');
+  $c = $t->get_cell($$rowPointer, 10);$c->set_type('string');$c->set_value('paid-leave');
+  $c = $t->get_cell($$rowPointer, 11);$c->set_type('string');$c->set_value('non-paid-leave');
+  $c = $t->get_cell($$rowPointer, 12);$c->set_type('string');$c->set_value('sick-leave');
+  $c = $t->get_cell($$rowPointer, 13);$c->set_type('string');$c->set_value('care-leave');
+  $c = $t->get_cell($$rowPointer, 14);$c->set_type('string');$c->set_value('training');
+  $c = $t->get_cell($$rowPointer, 15);$c->set_type('string');$c->set_value('eveningWork');
+  $c = $t->get_cell($$rowPointer, 16);$c->set_type('string');$c->set_value('dailyOverwork1');
+  $c = $t->get_cell($$rowPointer, 17);$c->set_type('string');$c->set_value('dailyOverwork2');
+  $c = $t->get_cell($$rowPointer, 18);$c->set_type('string');$c->set_value('saturday?');
+  $c = $t->get_cell($$rowPointer, 19);$c->set_type('string');$c->set_value('sunday?');
+  $c = $t->get_cell($$rowPointer, 20);$c->set_type('string');$c->set_value('comments');
   $$rowPointer++;
 }
 my $lastKnownOverworkAccumulation;
@@ -144,117 +158,102 @@ sub _writeDay {
   $lastKnownOverworkAccumulation = $day->overworkAccumulation if $day && $day->overworkAccumulation;
 
   my ($c, $v);
-  #1 - day
-  $c = $t->get_cell($$rowPointer, 0);$c->set_type('date');$c->set_value($ymd);
-  #2 - start
-  $c = $t->get_cell($$rowPointer, 1);$c->set_type('time');$c->set_value(  $day ? $dtF_hms->format_datetime($day->start) : 'PT00H00M00S'  );
-  #3 - end
-  $c = $t->get_cell($$rowPointer, 2);$c->set_type('time');$c->set_value(  $day ? $dtF_hms->format_datetime($day->end) : 'PT00H00M00S'  );
-  #4 - break
-  $c = $t->get_cell($$rowPointer, 3);$c->set_type('time');$c->set_value(  $day ? $ddF_hms->format_duration($day->breaks) : 'PT00H00M00S'  );
-  #5 - +/-
-  $c = $t->get_cell($$rowPointer, 4);$c->set_type('time');$c->set_value(  $day ? $ddF_hms->format_duration($day->overwork) : 'PT00H00M00S'  );
-  #6 - duration
-  $c = $t->get_cell($$rowPointer, 5);$c->set_type('time');$c->set_value(  $day ? $ddF_hms->format_duration($day->duration) : 'PT00H00M00S'  );
-  #7 - overworkAccumulation
-  $c = $t->get_cell($$rowPointer, 6);$c->set_type('time');$c->set_value(  $day ? $ddF_hms->format_duration($day->overworkAccumulation) : $ddF_hms->format_duration($lastKnownOverworkAccumulation)  );
-  #8 - remote?
-  $c = $t->get_cell($$rowPointer, 7);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->remote : undef)  );
-  #9 - benefits?
-  $c = $t->get_cell($$rowPointer, 8);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->benefits : undef)  );
+  #0 - day
+  $c = $t->get_cell($$rowPointer,  0);$c->set_type('date');$c->set_value($ymd);
+  #1 - start
+  $c = $t->get_cell($$rowPointer,  1);$c->set_type('time');$c->set_value(  $day->start ? $dtF_hms->format_datetime($day->start) : $defaultTime  );
+  #2 - end
+  $c = $t->get_cell($$rowPointer,  2);$c->set_type('time');$c->set_value(  $day->end ? $dtF_hms->format_datetime($day->end) : $defaultTime  );
+  #3 - break
+  $c = $t->get_cell($$rowPointer,  3);$c->set_type('time');$c->set_value(  $day->breaks ? $ddF_hms->format_duration($day->breaks) : $defaultTime  );
+  #4 - +/-
+  $c = $t->get_cell($$rowPointer,  4);$c->set_type('time');$c->set_value(  $day->overwork ? $ddF_hms->format_duration($day->overwork) : $defaultTime  );
+  #5 - duration
+  $c = $t->get_cell($$rowPointer,  5);$c->set_type('time');$c->set_value(  $day->duration ? $ddF_hms->format_duration($day->duration) : $defaultTime  );
+  #6 - overworkAccumulation
+  $c = $t->get_cell($$rowPointer,  6);$c->set_type('time');$c->set_value(  $ddF_hms->format_duration($day->overworkAccumulation)  );
+  #7 - remote?
+  $c = $t->get_cell($$rowPointer,  7);$c->set_type('boolean');$c->set_value(  odf_boolean($day->remote)  );
+  #8 - benefits?
+  $c = $t->get_cell($$rowPointer,  8);$c->set_type('boolean');$c->set_value(  odf_boolean($day->benefits)  );
+  #9 - vacation
+  $c = $t->get_cell($$rowPointer,  9);$c->set_type('time');$c->set_value(  $day->vacation ? $ddF_hms->format_duration($day->vacation) : $defaultTime  );
+  #10 - Paid leave
+  $c = $t->get_cell($$rowPointer, 10);$c->set_type('time');$c->set_value(  $day->paidLeave ? $ddF_hms->format_duration($day->paidLeave) : $defaultTime  );
+  #11 - Non-paid leave
+  $c = $t->get_cell($$rowPointer, 11);$c->set_type('time');$c->set_value(  $day->nonPaidLeave ? $ddF_hms->format_duration($day->nonPaidLeave) : $defaultTime  );
+  #12 - sick leave
+  $c = $t->get_cell($$rowPointer, 12);$c->set_type('time');$c->set_value(  $day->sickLeave ? $ddF_hms->format_duration($day->sickLeave) : $defaultTime  );
+  #13 - care-leave
+  $c = $t->get_cell($$rowPointer, 13);$c->set_type('time');$c->set_value(  $day->careLeave ? $ddF_hms->format_duration($day->careLeave) : $defaultTime  );
+  #14 - training
+  $c = $t->get_cell($$rowPointer, 14);$c->set_type('time');$c->set_value(  $day->learning ? $ddF_hms->format_duration($day->learning) : $defaultTime  );
+  #15 - eveningWork
+  $c = $t->get_cell($$rowPointer, 15);$c->set_type('time');$c->set_value(  $day->eveningWork ? $ddF_hms->format_duration($day->eveningWork) : $defaultTime  );
+  #16 - daily overwork 1
+  $c = $t->get_cell($$rowPointer, 16);$c->set_type('time');$c->set_value(  $day->dailyOverwork1 ? $ddF_hms->format_duration($day->dailyOverwork1) : $defaultTime  );
+  #17 - daily overwork 2
+  $c = $t->get_cell($$rowPointer, 17);$c->set_type('time');$c->set_value(  $day->dailyOverwork2 ? $ddF_hms->format_duration($day->dailyOverwork2) : $defaultTime  );
+  #18 - saturday?
+  $c = $t->get_cell($$rowPointer, 18);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSaturday : undef)  );
+  #19 - sunday?
+  $c = $t->get_cell($$rowPointer, 19);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSunday : undef)  );
+  #20 - comments
+  $c = $t->get_cell($$rowPointer, 20);$c->set_type('string');$c->set_value(  $day->comments  );
 
   $l->debug("$$rowPointer: $ymd - ".($day ? $day : 'undef')) if $l->is_debug();
 }
-=head
-  #Print header
-  #      table, line, col, value, formatter
-  $doc->updateCell(0, 0, 0, 'day', undef);
-  $doc->updateCell(0, 0, 1, 'strt', undef);
-  $doc->updateCell(0, 0, 2, 'end', undef);
-  $doc->updateCell(0, 0, 3, 'brk', undef);
-  $doc->updateCell(0, 0, 4, '+/-', undef);
-  $doc->updateCell(0, 0, 5, 'dur', undef);
-  $doc->updateCell(0, 0, 6, 'cum', undef);
-  $doc->updateCell(0, 0, 7, 'rmt?', undef);
-  $doc->updateCell(0, 0, 8, 'bnft?', undef);
 
-  my $i=1;
+
+sub asCsv {
+  my ($self) = @_;
+
+  my $csv = Text::CSV->new or die "Cannot use CSV: ".Text::CSV->error_diag ();
+  $csv->eol("\n");
+  open my $fh, ">:encoding(utf8)", $self->{file} or die $self->{file}.": $!";
+
+  my $days = $self->{worklogDays};
+  my @dates = sort keys %{$days};
+  my $dates = $self->fillMissingYMDs(\@dates);
+
   foreach my $ymd (@$dates) {
-    my $n = $i+1;
     my $day = $days->{$ymd};
-    my ($c, $v);
-    #1
-    $c = $doc->getCell(0, $i, 0);
-    $doc->cellType($c, 'date');
-    $doc->cellStyle($c, 'ce2');
-    $v = $ymd;
-    $doc->updateCell($c, $v, undef);
-    #2
-    $c = $doc->getCell(0, $i, 1);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = $day ? $dtF_hms->format_datetime($day->start) : 'PT00H00M00S';
-    $doc->updateCell($c, $v, undef);
-    #3
-    $c = $doc->getCell(0, $i, 2);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = $day ? $dtF_hms->format_datetime($day->end) : 'PT00H00M00S';
-    $doc->updateCell($c, $v, undef);
-    #4
-    $c = $doc->getCell(0, $i, 3);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = $day ? $ddF_hms->format_duration($day->breaks) : 'PT00H00M00S';
-    $doc->updateCell($c, $v, undef);
-    #5
-    $c = $doc->getCell(0, $i, 4);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = $day ? $ddF_hms->format_duration($day->overwork) : 'PT00H00M00S';
-    $doc->updateCell($c, $v, undef);
-    #6
-    $c = $doc->getCell(0, $i, 5);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = "=(C$n-B$n-D$n)";
-    $doc->cellFormula($c, $v);
-    #7
-    $c = $doc->getCell(0, $i, 6);
-    $doc->cellType($c, 'time');
-    $doc->cellStyle($c, 'ce4');
-    $v = "=SUM(F".($i+1).";G".($i+0);
-    $doc->cellFormula($c, $v);
-    #8
-    $c = $doc->getCell(0, $i, 7);
-    $doc->cellType($c, 'number');
-    $doc->cellStyle($c, 'ce9');
-    $v = $day ? $day->remote : undef;
-    $doc->updateCell($c, $v);
-    #9
-    $c = $doc->getCell(0, $i, 8);
-    $doc->cellType($c, 'float');
-    $doc->cellStyle($c, 'ce9');
-    $v = $day ? $day->benefits : undef;
-    $doc->updateCell($c, $v);
-
-    $l->debug("$i: $ymd - ".($day ? $day : 'undef')) if $l->is_debug();
-    $i++;
+    my $row;
+    if ($day) {
+      $row = [
+        $ymd,
+        $day->start->hms,
+        $day->end->hms,
+        RMS::Dates::formatDurationPHMS($day->breaks),
+        RMS::Dates::formatDurationPHMS($day->duration),
+        RMS::Dates::formatDurationPHMS($day->overwork),
+      ];
+    }
+    else {
+      $days->{$ymd} = undef;
+      $row = [
+        $ymd,
+        undef, undef, undef, undef, undef,
+      ];
+    }
+    $csv->print($fh, $row);
   }
 
-  $doc->normalizeSheet(0, 'full');
-  $doc->save(target => $self->{file});
-  $doc->forget();
-  return $self->{file};
+  close $fh or die $self->{file}.": $!";
+  return $days;
 }
 
-=head2 $class->_fillMissingDays
+=head2 $class->fillMissingYMDs
 
-Fill days between the first and last workday that don't have any worklogs with empty values
+Given a list of YMDs, fill any missing YMD to make a continuous list of YMDs wihtout missing days.
+
+@PARAM1 $class,
+@PARAM2 Arrayref of String, YMDs
+@RETURNS Arrayref of String, YMDs with missing days filled
 
 =cut
 
-sub _fillMissingDays {
+sub fillMissingYMDs {
     my ($class, $ymds) = @_;
 
     my @ymds;
@@ -268,6 +267,43 @@ sub _fillMissingDays {
         } while ($b && $a < $b);
     }
     return \@ymds;
+}
+
+=head2 $class->fillMissingDays
+
+Just like _fillMissingYMDs, but receives a hash of RMS::Worklogs::Day-objects and fills the missing days
+with empty RMS::Worklogs::Day-objects
+
+@PARAM1 $class
+@PARAM2 HashRef of RMS::Worklogs::Day-objects, with keys as YMDs
+@RETURNS HashRef of RMS::Worklogs::Day-objects with empty days filled with empty defaults
+
+=cut
+
+sub fillMissingDays {
+    my ($class, $days) = @_;
+    die __PACKAGE__."::fillMissingDays():> \$days '".($days || 'undef')."' is not a HASHREF" unless(ref($days) eq 'HASH');
+
+    my @dates = sort keys %$days;
+    my %days;
+    for (my $i=0 ; $i<scalar(@dates) ; $i++) {
+        my $a = $dates[$i];
+        my $b = $dates[$i+1] if $dates[$i+1];
+
+        my $prevDay = $days->{$a};
+        $l->trace("Entering date filling loop with date='$a', \$prevDay=".$prevDay) if $l->is_trace();
+        do {
+            my $curDay = $days->{$a};
+            $l->trace("Fetch \$curDay=".($curDay || 'undef')) if $l->is_trace();
+            $days{$a} = $curDay ? $curDay : RMS::Worklogs::Day->newEmpty($prevDay);
+            $l->trace("Set \$curDay=".($days{$a} || 'undef')) if $l->is_trace();
+            $prevDay = $days{$a};
+            #Increment $a by one day
+            $a = DateTime::Format::MySQL->parse_datetime( $a.' 00:00:00' )->add_duration( DateTime::Duration->new(days => 1) )->ymd();
+            $l->trace("Date='$a' incremented") if $l->is_trace();
+        } while ($b && $a lt $b);
+    }
+    return \%days;
 }
 
 1;

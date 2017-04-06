@@ -31,7 +31,18 @@ our $specialIssues = {
   vacationIssueId     => 9,
   paidLeaveIssueId    => 1618,
   nonPaidLeaveIssueId => 1514,
+  careLeaveIssueId    => 622,
   sickLeaveIssueId    => 622,
+};
+our $issuesSpecial = {
+  9 => 'vacation',
+  1618 => 'paidLeave',
+  1514 => 'nonPaidLeave',
+  622 => 'careLeave',
+  622 => 'sickLeave',
+};
+our $activitySpecial = {
+  'Learning' => 'learning',
 };
 
 =head2 getDayLengthDt
@@ -57,17 +68,33 @@ sub getDayLengthDt {
   }
 }
 
-=head2 isVacation
+my $dailyOverworkThreshold1 = DateTime::Duration->new(hours => 2);
+sub getDailyOverworkThreshold1 {
+  return $dailyOverworkThreshold1;
+}
 
-  if ($wr->isVacation($issueId || 101)) {
-    #do stuff
-  }
+my $eveningWorkThreshold = DateTime::Duration->new(hours => 18);
+sub getEveningWorkThreshold {
+  return $eveningWorkThreshold;
+}
+
+=head2 getSpecialWorkCategory
+
+Checks the $issue/$activity -tables if the given $issueId matches a special issue, for ex. Vacations, Sick-Leave, etc.
+Or if the given activity is something special, like learning, that needs to be categorized separately.
+
+@PARAM1 Integer, redmine.time_entries.issue_id
+@PARAM2 Integer, redmine.time_entries.activity
+@RETURNS String, special category if applicable
 
 =cut
 
-sub isVacation {
-  shift;
-  return 1 if $specialIssues->{vacationIssueId} == shift;
+sub getSpecialWorkCategory {
+  my ($issueId, $activity) = @_;
+  return $issuesSpecial->{$issueId} if $issuesSpecial->{$issueId};
+  return $activitySpecial->{$activity} = $activitySpecial->{$activity};
 }
+
+
 
 1;

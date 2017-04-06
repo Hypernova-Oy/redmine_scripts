@@ -35,7 +35,7 @@ sub getWorklogs {
 
     my $user = RMS::Users::getUser($self->param('user'));
     my $dbh = RMS::Context->dbh();
-    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id FROM time_entries WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
+    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id, e.name as activity FROM time_entries te LEFT JOIN enumerations e ON te.activity_id = e.id WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
     $sth->execute($user->{id});
     $self->{worklogs} = $sth->fetchall_arrayref({});
     return $self->{worklogs};
@@ -55,40 +55,7 @@ sub asOds {
 
 sub asCsv {
     my ($self, $filePath) = @_;
-    my $days = $self->asDays();
-
-    my $csv = Text::CSV->new or die "Cannot use CSV: ".Text::CSV->error_diag ();
-    $csv->eol("\n");
-    open my $fh, ">:encoding(utf8)", $filePath or die "$filePath: $!";
-
-    my @dates = sort keys %{$days};
-    my $dates = $self->_fillMissingDays(\@dates);
-
-    foreach my $ymd (@$dates) {
-        my $day = $days->{$ymd};
-        my $row;
-        if ($day) {
-            $row = [
-                $ymd,
-                $day->start->hms,
-                $day->end->hms,
-                RMS::Dates::formatDurationPHMS($day->breaks),
-                RMS::Dates::formatDurationPHMS($day->duration),
-                RMS::Dates::formatDurationPHMS($day->overwork),
-            ];
-        }
-        else {
-            $days->{$ymd} = undef;
-            $row = [
-                $ymd,
-                undef, undef, undef, undef, undef,
-            ];
-        }
-        $csv->print($fh, $row);
-    }
-
-    close $fh or die "$filePath: $!";
-    return $days;
+    return RMS::Worklogs::Exporter->new({file => $filePath, worklogDays => $self->asDays()})->asCsv;
 }
 
 sub params {
@@ -127,28 +94,6 @@ sub _calculateDays {
         $prevOverworkAccumulation = $day->overworkAccumulation();
     }
     return \%days;
-}
-
-=head2 $class->_fillMissingDays
-
-Fill days between the first and last workday that don't have any worklogs with empty values
-
-=cut
-
-sub _fillMissingDays {
-    my ($class, $ymds) = @_;
-
-    my @ymds;
-    for (my $i=0 ; $i<scalar(@$ymds) ; $i++) {
-        my $a = DateTime::Format::MySQL->parse_datetime( $ymds->[$i].' 00:00:00' );
-        my $b = DateTime::Format::MySQL->parse_datetime( $ymds->[$i+1].' 00:00:00' ) if $ymds->[$i+1];
-
-        do {
-            push(@ymds, $a->ymd());
-            $a->add_duration( DateTime::Duration->new(days => 1) );
-        } while ($b && $a < $b);
-    }
-    return \@ymds;
 }
 
 1;

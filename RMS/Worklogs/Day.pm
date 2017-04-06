@@ -6,7 +6,6 @@ use Params::Validate qw(:all);
 
 use DateTime::Duration;
 
-use RMS::Validations;
 use RMS::Dates;
 use RMS::Worklogs::Tags;
 use RMS::WorkRules;
@@ -35,6 +34,7 @@ our %validations = (
     end =>       {isa => 'DateTime'},
     breaks =>    {isa => 'DateTime::Duration'},
     duration =>  {isa => 'DateTime::Duration'},
+    specialDurations => {type => HASHREF, optional => 1},
     benefits =>  {type => SCALAR|UNDEF},
     remote =>    {type => SCALAR|UNDEF},
     overwork =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
@@ -54,10 +54,6 @@ sub new {
     $params->{comments} = '!END overflow '.RMS::Dates::formatDurationHMS($params->{overflow}).'!'.($params->{comments} ? $params->{comments} : '') if ($params->{overflow});
     $params->{comments} = '!START underflow '.RMS::Dates::formatDurationHMS($params->{underflow}).'!'.($params->{comments} ? $params->{comments} : '') if ($params->{underflow});
 
-    my $dayLength = RMS::WorkRules->new()->getDayLengthDt($params->{start});
-    my $overworkDuration = $params->{duration}->clone->subtract($dayLength);
-    my $overworkAccumulation = $params->{overworkAccumulation}->clone()->add_duration($overworkDuration);
-    $overworkAccumulation->subtract_duration($params->{overworkReimbursed}) if $params->{overworkReimbursed};
     my $self = {
         ymd => $params->{start}->ymd(),
         start => $params->{start},
@@ -66,16 +62,24 @@ sub new {
         duration => $params->{duration},
         benefits => $params->{benefits},
         remote => $params->{remote},
-        overwork => $overworkDuration,
         overworkReimbursed => $params->{overworkReimbursed},
         overworkReimbursedBy => $params->{overworkReimbursedBy},
-        overworkAccumulation => $overworkAccumulation,
         overflow => $params->{overflow},
         underflow => $params->{underflow},
         comments => $params->{comments},
     };
-
+    #Special work types/durations
+    if ($params->{specialDurations}) {
+        foreach my $key (%{$params->{specialDurations}}) {
+            $self->{$key} = $params->{specialDurations}->{$key};
+        }
+    }
     bless($self, $class);
+
+    $self->setOverwork();
+    $self->setOverworkAccumulation($params->{overworkAccumulation});
+    $self->setDailyOverworks();
+    $self->setEveningWork();
     return $self;
 }
 
@@ -83,8 +87,6 @@ sub new {
 
 Given a bunch of worklogs for a single day, from the Redmine DB,
 a flattened day-representation of the events happened within those worklog entries is returned.
-
-
 
 =cut
 
@@ -99,14 +101,21 @@ sub newFromWorklogs {
 
     ##Flatten all comments so tags can be looked for
     my @comments;
-    ##Sum the durations of all individual worklog entries
+    ##Sum the durations of all individual worklog entries, vacations, paidLeave, sickLeave, careLeave, learning
+    my %specialDurations;
     $workdayDuration = DateTime::Duration->new();
     foreach my $wl (@wls) {
         push(@comments, $wl->{comments}) if $wl->{comments};
         $l->trace("$dayYMD -> Comment prepended '".$wl->{comments}."'") if $wl->{comments} && $l->is_trace();
 
-        $workdayDuration->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} ));
+        $workdayDuration = $workdayDuration->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} ));
         $l->trace("$dayYMD -> Duration grows to ".RMS::Dates::formatDurationHMS($workdayDuration)) if $l->is_trace();
+
+        my $specialIssue = RMS::WorkRules::getSpecialWorkCategory($wl->{issue_id}, $wl->{activity});
+        if ($specialIssue) {
+            $specialDurations{$specialIssue} = ($specialDurations{$specialIssue}) ? $specialDurations{$specialIssue}->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} )) : RMS::Dates::hoursToDuration( $wl->{hours} );
+            $l->trace("$dayYMD -> Special work category '$specialIssue' grows to ".RMS::Dates::formatDurationHMS($specialDurations{$specialIssue})) if $l->is_trace();
+        }
     }
     my $comments = join(' ', @comments);
     ($benefits, $remote, $startDt, $endDt, $overworkReimbursed, $overworkReimbursedBy, $comments) = RMS::Worklogs::Tags::parseTags($comments);
@@ -133,10 +142,29 @@ sub newFromWorklogs {
     return RMS::Worklogs::Day->new({
         start => $startDt, end => $endDt, breaks => $breaksDuration, duration => $workdayDuration,
         overflow => $overflowDuration, underflow => $underflowDuration, benefits => $benefits,
-        remote => $remote, comments => $comments,
+        remote => $remote, comments => $comments, specialDurations => \%specialDurations,
         overworkReimbursed => $overworkReimbursed, overworkReimbursedBy => $overworkReimbursedBy,
         overworkAccumulation => $overworkAccumulation,
     });
+}
+
+=head2 newEmpty
+
+Creates a "empty" day filled with incrementing variables from a previous day
+
+=cut
+
+sub newEmpty {
+    my ($class, $prevDay) = @_;
+
+    my $self = {
+        ymd => $prevDay->ymd(),
+        overworkAccumulation => $prevDay->overworkAccumulation()->clone(),
+        comments => '',
+    };
+
+    bless($self, $class);
+    return $self;
 }
 
 sub ymd {
@@ -157,8 +185,20 @@ sub duration {
 sub breaks {
     return shift->{breaks};
 }
+sub setOverwork {
+    my ($self) = @_;
+    my $dayLength = RMS::WorkRules->getDayLengthDt($self->start);
+    $self->{overwork} = $self->duration->clone->subtract($dayLength);
+    return $self;
+}
 sub overwork {
     return shift->{overwork};
+}
+sub setOverworkAccumulation {
+    my ($self, $overworkAccumulation) = @_;
+    $overworkAccumulation = $overworkAccumulation->clone()->add_duration($self->overwork);
+    $overworkAccumulation->subtract_duration($self->overworkReimbursed) if $self->overworkReimbursed;
+    $self->{overworkAccumulation} = $overworkAccumulation;
 }
 sub overworkAccumulation {
     return shift->{overworkAccumulation};
@@ -184,7 +224,77 @@ sub benefits {
 sub comments {
     return shift->{comments};
 }
-
+sub setDailyOverworks {
+    my ($self) = @_;
+    if (DateTime::Duration->compare($self->overwork, RMS::Dates::zeroDuration()) <= 0) { #If we have negative overwork. Haven't completed all daily hours
+        $self->{dailyOverwork1} = RMS::Dates::zeroDuration();
+        $self->{dailyOverwork2} = RMS::Dates::zeroDuration();
+        return $self;
+    }
+    if (DateTime::Duration->compare($self->overwork, RMS::WorkRules::getDailyOverworkThreshold1()) <= 0) {
+        $self->{dailyOverwork1} = $self->overwork; #overwork is less than the first threshold
+    }
+    else {
+        $self->{dailyOverwork2} = $self->overwork->clone()->subtract_duration( RMS::WorkRules::getDailyOverworkThreshold1() );
+        $self->{dailyOverwork1} = RMS::WorkRules::getDailyOverworkThreshold1()->clone();
+    }
+    return $self;
+}
+sub dailyOverwork1 {
+    return shift->{dailyOverwork1};
+}
+sub dailyOverwork2 {
+    return shift->{dailyOverwork2};
+}
+sub setEveningWork {
+    my $end = $_[0]->end;
+    my $endDur = DateTime::Duration->new(hours => $end->hour, minutes => $end->minute, seconds => $end->second);
+    $endDur->subtract_duration(RMS::WorkRules::getEveningWorkThreshold);
+    if (DateTime::Duration->compare($endDur, RMS::Dates::zeroDuration) > 0) { #Our day ends after the evening threshold
+        $_[0]->{eveningWork} = $endDur;
+    }
+    return $_[0];
+}
+sub eveningWork {
+    return shift->{eveningWork};
+}
+sub isSaturday {
+    unless ($_[0]->start) {
+        my $dt = RMS::Dates::dateTimeFromYMD($_[0]->ymd);
+        $_[0]->{isSaturday} = ($dt->day_of_week == 6);
+        return $_[0]->{isSaturday};
+    }
+    return $_[0]->{isSaturday} if (not($_[0]->start));
+    return 1 if ($_[0]->start->day_of_week == 6);
+}
+sub isSunday {
+    unless ($_[0]->start) {
+        my $dt = RMS::Dates::dateTimeFromYMD($_[0]->ymd);
+        $_[0]->{isSunday} = ($dt->day_of_week == 7);
+        return $_[0]->{isSunday};
+    }
+    return $_[0]->{isSunday} if (not($_[0]->start));
+    return 1 if $_[0]->start->day_of_week == 7;
+}
+#Special work type accessors
+sub vacation {
+    return shift->{vacation};
+}
+sub paidLeave {
+    return shift->{paidLeave};
+}
+sub nonPaidLeave {
+    return shift->{nonPaidLeave};
+}
+sub careLeave {
+    return shift->{careLeave};
+}
+sub sickLeave {
+    return shift->{sickLeave};
+}
+sub learning {
+    return shift->{learning};
+}
 
 =head2 $class->_verifyStartTime
 
