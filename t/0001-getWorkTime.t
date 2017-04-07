@@ -151,14 +151,16 @@ subtest "simpleDailyLogging", \&simpleDaily;
 sub simpleDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
-        return [
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 1.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
-        ];
+        my @wls = (
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 1.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5},
+        );
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        return \@wls;
     });
 
     my $days = RMS::Worklogs->new({user => 1})->asDays();
@@ -173,68 +175,70 @@ subtest "advancedDailyLogging", \&advancedDaily;
 sub advancedDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
-        return [
-            {spent_on => '2015-06-11', created_on => '2015-06-11 10:34:29', hours => 0.5,  issue_id => 9999, activity => ''}, #This day had a problem with exponentially small 'hours'
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:26:06', hours => 0.75, issue_id => 9999, activity => ''},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:28:11', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:10:37', hours => 3,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:11:59', hours => 2,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:13:46', hours => 2,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:14:16', hours => 0.0000001, issue_id => 9999, activity => ''},
+        my @wls = (
+            {spent_on => '2015-06-11', created_on => '2015-06-11 10:34:29', hours => 0.5,}, #This day had a problem with exponentially small 'hours'
+            {spent_on => '2015-06-11', created_on => '2015-06-11 11:26:06', hours => 0.75,},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 11:28:11', hours => 0.25,},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:10:37', hours => 3,},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:11:59', hours => 2,},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:13:46', hours => 2,},
+            {spent_on => '2015-06-11', created_on => '2015-06-11 18:14:16', hours => 0.0000001,},
 
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:54:38', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:55:45', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 09:50:08', hours => 1,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:38:01', hours => 1,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:41:22', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:43:10', hours => 2.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:25:20', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:36:43', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:20', hours => 1,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:51', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:04:17', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:05:28', hours => 2,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:48:14', hours => 0.75, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 08:54:38', hours => 0.5,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 08:55:45', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 09:50:08', hours => 1,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:38:01', hours => 1,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:41:22', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 13:43:10', hours => 2.5,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 14:25:20', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 14:36:43', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:20', hours => 1,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:51', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:04:17', hours => 0.25,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:05:28', hours => 2,},
+            {spent_on => '2015-11-03', created_on => '2015-11-03 18:48:14', hours => 0.75,},
 
-            {spent_on => '2015-11-04', created_on => '2015-11-04 11:59:36', hours => 0.375,issue_id => 9999, activity => ''}, #This day had a strange bug in 'breaks'-calculus
-            {spent_on => '2015-11-04', created_on => '2015-11-04 12:00:00', hours => 0.37, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 16:59:43', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:12', hours => 4,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:20', hours => 1,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:24:45', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1,    issue_id => 9999, activity => ''},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75, issue_id => 9999, activity => ''},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 11:59:36', hours => 0.375,}, #This day had a strange bug in 'breaks'-calculus
+            {spent_on => '2015-11-04', created_on => '2015-11-04 12:00:00', hours => 0.37,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 16:59:43', hours => 0.25,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:12', hours => 4,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:20', hours => 1,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 17:24:45', hours => 0.25,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1,},
+            {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75,},
 
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:34:42', hours => 2,    issue_id => 9999, activity => ''},    #Bugfix where these days yield strange hours
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:07', hours => 3,    issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:25', hours => 2.25, issue_id => 9999, activity => ''}, #end time - start time = -15:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 00:20:48', hours => 0.75, issue_id => 9999, activity => ''}, #end time - start time = 00:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 15:29:40', hours => 4,    issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:02:33', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:34:53', hours => 0.6,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:25:28', hours => 1.75, issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:26:02', hours => 0.2,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:30:00', hours => 0.95, issue_id => 9999, activity => ''},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:36:21', hours => 0.25, issue_id => 9999, activity => ''},
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:34:42', hours => 2,},    #Bugfix where these days yield strange hours
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:07', hours => 3,},
+            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:25', hours => 2.25,}, #end time - start time = -15:00
+            {spent_on => '2016-04-27', created_on => '2016-04-27 00:20:48', hours => 0.75,}, #end time - start time = 00:00
+            {spent_on => '2016-04-27', created_on => '2016-04-27 15:29:40', hours => 4,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 16:02:33', hours => 0.5,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 16:34:53', hours => 0.6,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 18:25:28', hours => 1.75,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 18:26:02', hours => 0.2,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 19:30:00', hours => 0.95,},
+            {spent_on => '2016-04-27', created_on => '2016-04-27 19:36:21', hours => 0.25,},
 
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5, issue_id => 9999, activity => ''},  #Dangerous unsyncronized worklog entries
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5,},  #Dangerous unsyncronized worklog entries
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25,},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25,},
+            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5,},
 
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},  #Dangerous unsyncronized worklog entries fixed days later
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
-            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5, issue_id => 9999, activity => ''},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5,},  #Dangerous unsyncronized worklog entries fixed days later
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25,},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5,},
+            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25,},
+            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5,},
+            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5,},
 
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5,    issue_id => 9999, activity => ''}, #Bug: Negative break duration?
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666,issue_id => 9999, activity => ''},
-            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25, issue_id => 9999, activity => ''},
-        ];
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5,}, #Bug: Negative break duration?
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666,},
+            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25,},
+        );
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        return \@wls;
     });
 
     my $days = RMS::Worklogs->new({user => 1})->asDays();
@@ -256,12 +260,14 @@ subtest "simpleCsvExport", \&simpleCsvExport;
 sub simpleCsvExport {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
-        return [
-            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2, issue_id => 9999},
-            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2, issue_id => 9999},
-            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999},
-            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999},
-        ];
+        my @wls = (
+            {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2},
+            {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2},
+            {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
+            {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
+        );
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        return \@wls;
     });
     my ($days, $csv, $fh, $row);
 
@@ -309,12 +315,14 @@ subtest "simpleOdsExport", \&simpleOdsExport;
 sub simpleOdsExport {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
-        return [
+        my @wls = (
             {spent_on => '2016-05-20', created_on => '2016-05-20 12:00:00', hours => 2, issue_id => 9999, activity => ''},
             {spent_on => '2016-05-23', created_on => '2016-05-23 12:00:00', hours => 2, issue_id => 9999, activity => ''},
             {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999, activity => ''},
             {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999, activity => ''},
-        ];
+        );
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        return \@wls;
     });
     my ($days, $csv, $fh, $row);
 
@@ -339,4 +347,19 @@ sub testDay {
     is($day->benefits, $benefits, "$yms benefits");
     is($day->remote,   $remote,   "$yms remote");
     is($day->comments, $comments, "$yms comments");
+}
+
+=head2 _worklogDefault
+
+Inject default keys to a bunch of time_entry-rows
+
+=cut
+
+sub _worklogDefault {
+    my ($wls, $defaults) = @_;
+    foreach my $wl (@$wls) { #Append defaults for each time_entry
+        foreach my $key (keys %$defaults) {
+            $wl->{$key} = $defaults->{$key};
+        }
+    }
 }

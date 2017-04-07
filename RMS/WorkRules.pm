@@ -5,6 +5,8 @@ use Carp;
 use DateTime;
 use DateTime::Duration;
 
+use Params::Validate qw(:all);
+
 =head1 SYNOPSIS
 
 This module deals with calculating the proper working rules for the given day
@@ -76,6 +78,31 @@ sub getDailyOverworkThreshold1 {
 my $eveningWorkThreshold = DateTime::Duration->new(hours => 18);
 sub getEveningWorkThreshold {
   return $eveningWorkThreshold;
+}
+
+sub getVacationAccumulationDayOfMonth {
+  return 15;
+}
+
+=head2 getVacationAccumulationDuration
+
+How many days/hours of vacations are "earned" every month?
+
+@PARAM1 Integer, redmine.time_entries.user_id
+@PARAM2 DateTime, for the given day
+@RETURNS DateTime::Duration, Duration to add to the vacationAccumulation quota.
+
+=cut
+
+my $vacationAccumulationDuration = DateTime::Duration->new(days => 2);
+our @validGVAD = (
+  {type => SCALAR}, #userId
+  {isa => 'DateTime::Duration'}, #dayDt
+);
+sub getVacationAccumulationDuration {
+  my ($userId, $dayDt) = validate(@_, @validGVAD);
+  #TODO!
+  return $vacationAccumulationDuration;
 }
 
 =head2 getSpecialWorkCategory

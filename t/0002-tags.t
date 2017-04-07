@@ -38,26 +38,28 @@ sub extractTags {
     eval {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
-        return [
+        my @wls = (
             {comments => '{{START08:33}}. This is a nice day.',
-             spent_on => '2017-05-20', created_on => '2017-05-20 11:05:17', hours => 1.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 11:05:17', hours => 1.5},
             {comments => 'Today I am working {{REMOTE}}:ly and it is ok.',
-             spent_on => '2017-05-20', created_on => '2017-05-20 11:08:29', hours => 0.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 11:08:29', hours => 0.5},
             {comments => 'My boss said "{{BENEFITS}}" so I get paid for weekend-work',
-             spent_on => '2017-05-20', created_on => '2017-05-20 11:09:06', hours => 0.25, issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 11:09:06', hours => 0.25},
             {comments => 'This is just a comment to confuse you',
-             spent_on => '2017-05-20', created_on => '2017-05-20 11:51:26', hours => 0.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 11:51:26', hours => 0.5},
             {comments => 'This {comment} is here to {{confuse}} the program',
-             spent_on => '2017-05-20', created_on => '2017-05-20 11:52:18', hours => 0.25, issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 11:52:18', hours => 0.25},
             {comments => '{{END1633}}. I hope I did it all.',
-             spent_on => '2017-05-20', created_on => '2017-05-20 15:29:21', hours => 3.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-20', created_on => '2017-05-20 15:29:21', hours => 3.5},
             {comments => '{{BEGIN 08:00}} - {{CLOSE1600}}{{REMOTE}}. This is a nice day.{{BONUS}}',
-             spent_on => '2017-05-21', created_on => '2017-05-21 16:05:02', hours => 8.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-21', created_on => '2017-05-21 16:05:02', hours => 8.5},
             {comments => '{{PAID 08:00 @bossman}}',
-             spent_on => '2017-05-22', created_on => '2017-05-22 16:05:02', hours => 8.5,  issue_id => 9999, activity => ''},
+             spent_on => '2017-05-22', created_on => '2017-05-22 16:05:02', hours => 8.5},
             {comments => '{{REIMBURSED 05:00 @bossman}}',
-             spent_on => '2017-05-23', created_on => '2017-05-23 16:05:02', hours => 8.5,  issue_id => 9999, activity => ''},
-        ];
+             spent_on => '2017-05-23', created_on => '2017-05-23 16:05:02', hours => 8.5},
+        );
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        return \@wls;
     });
 
     my $days = RMS::Worklogs->new({user => 1})->asDays();
@@ -102,3 +104,18 @@ sub extractTags {
 
 
 done_testing();
+
+=head2 _worklogDefault
+
+Inject default keys to a bunch of time_entry-rows
+
+=cut
+
+sub _worklogDefault {
+    my ($wls, $defaults) = @_;
+    foreach my $wl (@$wls) { #Append defaults for each time_entry
+        foreach my $key (keys %$defaults) {
+            $wl->{$key} = $defaults->{$key};
+        }
+    }
+}

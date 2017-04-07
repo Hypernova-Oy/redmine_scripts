@@ -30,20 +30,22 @@ my $l = bless({}, 'RMS::Logger');
 =cut
 
 our %validations = (
-    start =>     {isa => 'DateTime'},
-    end =>       {isa => 'DateTime'},
-    breaks =>    {isa => 'DateTime::Duration'},
-    duration =>  {isa => 'DateTime::Duration'},
+    start    =>   {isa => 'DateTime'},
+    end      =>   {isa => 'DateTime'},
+    breaks   =>   {isa => 'DateTime::Duration'},
+    duration =>   {isa => 'DateTime::Duration'},
     specialDurations => {type => HASHREF, optional => 1},
-    benefits =>  {type => SCALAR|UNDEF},
-    remote =>    {type => SCALAR|UNDEF},
-    overwork =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    benefits =>   {type => SCALAR|UNDEF},
+    remote   =>   {type => SCALAR|UNDEF},
+    overwork =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
     overworkReimbursed =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
     overworkReimbursedBy => {type => SCALAR|UNDEF, depends => 'overworkReimbursed'},
     overworkAccumulation => {isa => 'DateTime::Duration'},
-    overflow =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
-    underflow => {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
-    comments =>  {type => SCALAR|UNDEF},
+    vacationAccumulation => {isa => 'DateTime::Duration'},
+    overflow  =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    underflow =>  {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
+    comments  =>  {type => SCALAR|UNDEF},
+    userId    =>  {type => SCALAR},
 );
 sub new {
     my ($class) = shift;
@@ -55,18 +57,19 @@ sub new {
     $params->{comments} = '!START underflow '.RMS::Dates::formatDurationHMS($params->{underflow}).'!'.($params->{comments} ? $params->{comments} : '') if ($params->{underflow});
 
     my $self = {
-        ymd => $params->{start}->ymd(),
-        start => $params->{start},
-        end => $params->{end},
-        breaks => $params->{breaks},
-        duration => $params->{duration},
-        benefits => $params->{benefits},
-        remote => $params->{remote},
+        ymd =>       $params->{start}->ymd(),
+        start =>     $params->{start},
+        end =>       $params->{end},
+        breaks =>    $params->{breaks},
+        duration =>  $params->{duration},
+        benefits =>  $params->{benefits},
+        remote =>    $params->{remote},
         overworkReimbursed => $params->{overworkReimbursed},
         overworkReimbursedBy => $params->{overworkReimbursedBy},
-        overflow => $params->{overflow},
+        overflow =>  $params->{overflow},
         underflow => $params->{underflow},
-        comments => $params->{comments},
+        comments =>  $params->{comments},
+        userId =>    $params->{userId},
     };
     #Special work types/durations
     if ($params->{specialDurations}) {
@@ -80,6 +83,7 @@ sub new {
     $self->setOverworkAccumulation($params->{overworkAccumulation});
     $self->setDailyOverworks();
     $self->setEveningWork();
+    $self->setVacationAccumulation($params->{vacationAccumulation});
     return $self;
 }
 
@@ -88,10 +92,15 @@ sub new {
 Given a bunch of worklogs for a single day, from the Redmine DB,
 a flattened day-representation of the events happened within those worklog entries is returned.
 
+@PARAM1 $class
+@PARAM2 String, YYYY-MM-DD of the day being created
+@PARAM3 DateTime::Duration, How much overwork has been accumulated up to this day. Exclusive of this day.
+@PARAM4 DateTime::Duration, How much vacation has been accumulated up to this day. Exclusive of this day.
+
 =cut
 
 sub newFromWorklogs {
-    my ($class, $dayYMD, $overworkAccumulation, $worklogs) = @_;
+    my ($class, $dayYMD, $overworkAccumulation, $vacationAccumulation, $worklogs) = @_;
     unless ($dayYMD =~ /^\d\d\d\d-\d\d-\d\d$/) {
         confess "\$day '$dayYMD' is not a proper YYYY-MM-DD date";
     }
@@ -144,7 +153,8 @@ sub newFromWorklogs {
         overflow => $overflowDuration, underflow => $underflowDuration, benefits => $benefits,
         remote => $remote, comments => $comments, specialDurations => \%specialDurations,
         overworkReimbursed => $overworkReimbursed, overworkReimbursedBy => $overworkReimbursedBy,
-        overworkAccumulation => $overworkAccumulation,
+        overworkAccumulation => $overworkAccumulation, vacationAccumulation => $vacationAccumulation,
+        userId => $wls[0]->{user_id},
     });
 }
 
@@ -160,6 +170,7 @@ sub newEmpty {
     my $self = {
         ymd => $prevDay->ymd(),
         overworkAccumulation => $prevDay->overworkAccumulation()->clone(),
+        vacationAccumulation => $prevDay->vacationAccumulation()->clone(),
         comments => '',
     };
 
@@ -208,6 +219,21 @@ sub overworkReimbursed {
 }
 sub overworkReimbursedBy {
     return shift->{overworkReimbursedBy};
+}
+sub setVacationAccumulation {
+    my ($self, $vacationAccumulation) = @_;
+    $vacationAccumulation = $vacationAccumulation->clone();
+    #If today is the day when new vacations become available, add those vacations to the vacations quota
+    if ($self->start->day_of_month == RMS::WorkRules::getVacationAccumulationDayOfMonth()) {
+        $vacationAccumulation->add_duration(  RMS::WorkRules::getVacationAccumulationDuration($self->userId, $self->start)  );
+    }
+    #Check if vacations are used
+    $vacationAccumulation->subtract_duration($self->vacation) if $self->vacation;
+    #Store the vacation quota
+    $self->{vacationAccumulation} = $vacationAccumulation;
+}
+sub vacationAccumulation {
+    return shift->{vacationAccumulation};
 }
 sub overflow {
     return shift->{overflow};

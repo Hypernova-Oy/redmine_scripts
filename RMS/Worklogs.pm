@@ -35,7 +35,7 @@ sub getWorklogs {
 
     my $user = RMS::Users::getUser($self->param('user'));
     my $dbh = RMS::Context->dbh();
-    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id, e.name as activity FROM time_entries te LEFT JOIN enumerations e ON te.activity_id = e.id WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
+    my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id, user_id, e.name as activity FROM time_entries te LEFT JOIN enumerations e ON te.activity_id = e.id WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
     $sth->execute($user->{id});
     $self->{worklogs} = $sth->fetchall_arrayref({});
     return $self->{worklogs};
@@ -87,11 +87,16 @@ sub _calculateDays {
 
     my %days;
     my $prevOverworkAccumulation;
+    my $prevVacationAccumulation;
     foreach my $ymd (sort keys %$dailies) {
         my $worklogs = $dailies->{$ymd};
-        my $day = RMS::Worklogs::Day->newFromWorklogs($ymd, $prevOverworkAccumulation || DateTime::Duration->new(), $worklogs);
+        my $day = RMS::Worklogs::Day->newFromWorklogs($ymd,
+                                                      $prevOverworkAccumulation || DateTime::Duration->new(),
+                                                      $prevVacationAccumulation || DateTime::Duration->new(),
+                                                      $worklogs);
         $days{ $day->day() } = $day;
         $prevOverworkAccumulation = $day->overworkAccumulation();
+        $prevVacationAccumulation = $day->vacationAccumulation();
     }
     return \%days;
 }
