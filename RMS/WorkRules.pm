@@ -7,51 +7,23 @@ use DateTime::Duration;
 
 use Params::Validate qw(:all);
 
+use RMS::WorkRules::DB;
+
 =head1 SYNOPSIS
 
 This module deals with calculating the proper working rules for the given day
 
 =cut
 
-sub new {
-  my ($class, $params) = @_;
-
-  my $self = {params => $params};
-  bless($self, $class);
-
-  return $self;
-}
-
-=head2 specialIssues
-
-Marks some issue identifiers to have special purpose, like vacation, paid-leave, sick-leave, ...
-Check these from your Redmine installation.
-
-=cut
-
-our $specialIssues = {
-  vacationIssueId     => 9,
-  paidLeaveIssueId    => 1618,
-  nonPaidLeaveIssueId => 1514,
-  careLeaveIssueId    => 622,
-  sickLeaveIssueId    => 622,
-};
-our $issuesSpecial = {
-  9 => 'vacation',
-  1618 => 'paidLeave',
-  1514 => 'nonPaidLeave',
-  622 => 'careLeave',
-  622 => 'sickLeave',
-};
-our $activitySpecial = {
-  'Learning' => 'learning',
-};
 
 =head2 getDayLengthDt
 
   my $duration = $wr->getDayLengthDt($dateTime);
 
 How many hours we need to work every day.
+
+Day length changed 2017-02-01 to 7h 21min
+
 @RETURNS DateTime::Duration
 
 =cut
@@ -70,18 +42,16 @@ sub getDayLengthDt {
   }
 }
 
-my $dailyOverworkThreshold1 = DateTime::Duration->new(hours => 2);
 sub getDailyOverworkThreshold1 {
-  return $dailyOverworkThreshold1;
+  return $RMS::WorkRules::DB::dailyOverworkThreshold1;
 }
 
-my $eveningWorkThreshold = DateTime::Duration->new(hours => 18);
 sub getEveningWorkThreshold {
-  return $eveningWorkThreshold;
+  return $RMS::WorkRules::DB::eveningWorkThreshold;
 }
 
 sub getVacationAccumulationDayOfMonth {
-  return 15;
+  return $RMS::WorkRules::DB::vacationAccumulationDayOfMonth;
 }
 
 =head2 getVacationAccumulationDuration
@@ -94,7 +64,6 @@ How many days/hours of vacations are "earned" every month?
 
 =cut
 
-my $vacationAccumulationDuration = DateTime::Duration->new(days => 2);
 our @validGVAD = (
   {type => SCALAR}, #userId
   {isa => 'DateTime::Duration'}, #dayDt
@@ -102,7 +71,7 @@ our @validGVAD = (
 sub getVacationAccumulationDuration {
   my ($userId, $dayDt) = validate(@_, @validGVAD);
   #TODO!
-  return $vacationAccumulationDuration;
+  return $RMS::WorkRules::DB::vacationAccumulationDuration;
 }
 
 =head2 getSpecialWorkCategory
@@ -118,8 +87,8 @@ Or if the given activity is something special, like learning, that needs to be c
 
 sub getSpecialWorkCategory {
   my ($issueId, $activity) = @_;
-  return $issuesSpecial->{$issueId} if $issuesSpecial->{$issueId};
-  return $activitySpecial->{$activity} = $activitySpecial->{$activity};
+  return $RMS::WorkRules::DB::issuesSpecial{$issueId} if $RMS::WorkRules::DB::issuesSpecial{$issueId};
+  return $RMS::WorkRules::DB::activitySpecial{$activity} = $RMS::WorkRules::DB::activitySpecial{$activity};
 }
 
 

@@ -8,10 +8,11 @@ use RMS::Worklogs;
 use RMS::WorkRules;
 
 
-my $sickLeave = $RMS::WorkRules::specialIssues->{sickLeaveIssueId};
-my $vacation  = $RMS::WorkRules::specialIssues->{vacationIssueId};
-my $paidLeave = $RMS::WorkRules::specialIssues->{paidLeaveIssueId};
+my $sickLeave = $RMS::WorkRules::DB::specialIssues{sickLeaveIssueId};
+my $vacation  = $RMS::WorkRules::DB::specialIssues{vacationIssueId};
+my $paidLeave = $RMS::WorkRules::DB::specialIssues{paidLeaveIssueId};
 my $learning  = 'Learning';
+my $testDude  = $RMS::WorkRules::DB::nameToUserId{'testDude'};
 
 subtest "overworkAccumulation", \&overworkAccumulation;
 sub overworkAccumulation {
@@ -102,7 +103,7 @@ sub overworkAccumulation {
             #Wednesday is normal.
             {spent_on => '2017-05-03', created_on => '2017-05-03 16:30:00', hours => 7.5},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => $testDude});
         return \@wls;
     });
 
@@ -122,6 +123,17 @@ sub overworkAccumulation {
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-04'}->overworkAccumulation() ), '05:12:00', '04-04 overwork remains the same');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-05'}->overworkAccumulation() ), '05:12:00', '04-05 overwork remains the same');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-06'}->overworkAccumulation() ), '06:51:00', '04-06 overwork accumulated');
+
+    ## user testDude has 12 vacations from a prior work contract
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-29'}->vacationAccumulation() ), '86:24:00', '03-29 prior contract vacations retained');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-30'}->vacationAccumulation() ), '06:48:00', '03-30 vacation accumulated');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-31'}->vacationAccumulation() ), '05:12:00', '03-31 vacation partially reimbursed');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-01'}->vacationAccumulation() ), '05:12:00', '04-01 empty day, vacation unchanged');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-02'}->vacationAccumulation() ), '05:12:00', '04-02 empty day, vacation unchanged');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-03'}->vacationAccumulation() ), '05:12:00', '04-03 vacation remains the same');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-04'}->vacationAccumulation() ), '05:12:00', '04-04 vacation remains the same');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-05'}->vacationAccumulation() ), '05:12:00', '04-05 vacation remains the same');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-06'}->vacationAccumulation() ), '06:51:00', '04-06 vacation accumulated');
 
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-03'}->duration() ),             '07:21:00', '04-03 learning a bit, but workday duration is as expected');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-03'}->learning() ),             '00:45:00', '04-03 learning a bit');

@@ -223,12 +223,18 @@ sub overworkReimbursedBy {
 sub setVacationAccumulation {
     my ($self, $vacationAccumulation) = @_;
     $vacationAccumulation = $vacationAccumulation->clone();
+    $l->trace("\$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     #If today is the day when new vacations become available, add those vacations to the vacations quota
-    if ($self->start->day_of_month == RMS::WorkRules::getVacationAccumulationDayOfMonth()) {
-        $vacationAccumulation->add_duration(  RMS::WorkRules::getVacationAccumulationDuration($self->userId, $self->start)  );
+    if ($self->start->day == RMS::WorkRules::getVacationAccumulationDayOfMonth()) {
+        my $newVacations = RMS::WorkRules::getVacationAccumulationDuration($self->userId, $self->start);
+        $vacationAccumulation->add_duration(  $newVacations  );
+        $l->trace("New vacations earned '".RMS::Dates::formatDurationHMS($newVacations)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     }
     #Check if vacations are used
-    $vacationAccumulation->subtract_duration($self->vacation) if $self->vacation;
+    if ($self->vacation) {
+        $vacationAccumulation->subtract_duration($self->vacation);
+        $l->trace("Vacations used '".RMS::Dates::formatDurationHMS($self->vacation)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
+    }
     #Store the vacation quota
     $self->{vacationAccumulation} = $vacationAccumulation;
 }

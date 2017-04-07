@@ -68,7 +68,7 @@ sub asOds {
   ##Make sure the _data_-sheet is big enough (but not too big)
   #We put each day in monthly chunks to the _data_-sheet with ample spacing between months.
   #So roughly 40 rows per months should do it cleanly.
-  my ($neededHeight, $neededWidth) = ($rowsPerMonth*12, 21);
+  my ($neededHeight, $neededWidth) = ($rowsPerMonth*12, 22);
   my ($height, $width) = $t->get_size();
   if ($height < $neededHeight) {
     $l->debug("Base .ods '".$self->{baseOds}."' is lower '$height' than needed '$neededHeight'") if $l->is_debug();
@@ -127,79 +127,59 @@ sub _startMonth {
   $l->debug("Starting a new month '$y-$m-$d' on row '$$rowPointer'. Rows preserved for month '$rowsPerMonth'. Rows used during the last month '$rowsUsedDuringPrevMonth'. Skipping '$neededToNextMonthStart' rows forward to start a new month.") if $l->is_debug;
   $$rowPointer += $neededToNextMonthStart if $rowsUsedDuringPrevMonth;
 
-  my $c;
+  my $c; my $r=0;
   #            row,       col, value, formatter
-  $c = $t->get_cell($$rowPointer,  0);$c->set_type('string');$c->set_value('day');
-  $c = $t->get_cell($$rowPointer,  1);$c->set_type('string');$c->set_value('start');
-  $c = $t->get_cell($$rowPointer,  2);$c->set_type('string');$c->set_value('end');
-  $c = $t->get_cell($$rowPointer,  3);$c->set_type('string');$c->set_value('break');
-  $c = $t->get_cell($$rowPointer,  4);$c->set_type('string');$c->set_value('+/-');
-  $c = $t->get_cell($$rowPointer,  5);$c->set_type('string');$c->set_value('duration');
-  $c = $t->get_cell($$rowPointer,  6);$c->set_type('string');$c->set_value('accumulation');
-  $c = $t->get_cell($$rowPointer,  7);$c->set_type('string');$c->set_value('remote?');
-  $c = $t->get_cell($$rowPointer,  8);$c->set_type('string');$c->set_value('benefits?');
-  $c = $t->get_cell($$rowPointer,  9);$c->set_type('string');$c->set_value('vacation');
-  $c = $t->get_cell($$rowPointer, 10);$c->set_type('string');$c->set_value('paid-leave');
-  $c = $t->get_cell($$rowPointer, 11);$c->set_type('string');$c->set_value('non-paid-leave');
-  $c = $t->get_cell($$rowPointer, 12);$c->set_type('string');$c->set_value('sick-leave');
-  $c = $t->get_cell($$rowPointer, 13);$c->set_type('string');$c->set_value('care-leave');
-  $c = $t->get_cell($$rowPointer, 14);$c->set_type('string');$c->set_value('training');
-  $c = $t->get_cell($$rowPointer, 15);$c->set_type('string');$c->set_value('eveningWork');
-  $c = $t->get_cell($$rowPointer, 16);$c->set_type('string');$c->set_value('dailyOverwork1');
-  $c = $t->get_cell($$rowPointer, 17);$c->set_type('string');$c->set_value('dailyOverwork2');
-  $c = $t->get_cell($$rowPointer, 18);$c->set_type('string');$c->set_value('saturday?');
-  $c = $t->get_cell($$rowPointer, 19);$c->set_type('string');$c->set_value('sunday?');
-  $c = $t->get_cell($$rowPointer, 20);$c->set_type('string');$c->set_value('comments');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('day');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('start');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('end');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('break');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('+/-');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('duration');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('workAccumulation');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('vacationAccumulation');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('remote?');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('benefits?');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('vacation');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('paid-leave');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('non-paid-leave');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('sick-leave');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('care-leave');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('training');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('eveningWork');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('dailyOverwork1');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('dailyOverwork2');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('saturday?');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('sunday?');
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('comments');
   $$rowPointer++;
 }
-my $lastKnownOverworkAccumulation;
+
 sub _writeDay {
   my ($t, $rowPointer, $ymd, $day) = @_;
-  $lastKnownOverworkAccumulation = $day->overworkAccumulation if $day && $day->overworkAccumulation;
 
-  my ($c, $v);
-  #0 - day
-  $c = $t->get_cell($$rowPointer,  0);$c->set_type('date');$c->set_value($ymd);
-  #1 - start
-  $c = $t->get_cell($$rowPointer,  1);$c->set_type('time');$c->set_value(  $day->start ? $dtF_hms->format_datetime($day->start) : $defaultTime  );
-  #2 - end
-  $c = $t->get_cell($$rowPointer,  2);$c->set_type('time');$c->set_value(  $day->end ? $dtF_hms->format_datetime($day->end) : $defaultTime  );
-  #3 - break
-  $c = $t->get_cell($$rowPointer,  3);$c->set_type('time');$c->set_value(  $day->breaks ? $ddF_hms->format_duration($day->breaks) : $defaultTime  );
-  #4 - +/-
-  $c = $t->get_cell($$rowPointer,  4);$c->set_type('time');$c->set_value(  $day->overwork ? $ddF_hms->format_duration($day->overwork) : $defaultTime  );
-  #5 - duration
-  $c = $t->get_cell($$rowPointer,  5);$c->set_type('time');$c->set_value(  $day->duration ? $ddF_hms->format_duration($day->duration) : $defaultTime  );
-  #6 - overworkAccumulation
-  $c = $t->get_cell($$rowPointer,  6);$c->set_type('time');$c->set_value(  $ddF_hms->format_duration($day->overworkAccumulation)  );
-  #7 - remote?
-  $c = $t->get_cell($$rowPointer,  7);$c->set_type('boolean');$c->set_value(  odf_boolean($day->remote)  );
-  #8 - benefits?
-  $c = $t->get_cell($$rowPointer,  8);$c->set_type('boolean');$c->set_value(  odf_boolean($day->benefits)  );
-  #9 - vacation
-  $c = $t->get_cell($$rowPointer,  9);$c->set_type('time');$c->set_value(  $day->vacation ? $ddF_hms->format_duration($day->vacation) : $defaultTime  );
-  #10 - Paid leave
-  $c = $t->get_cell($$rowPointer, 10);$c->set_type('time');$c->set_value(  $day->paidLeave ? $ddF_hms->format_duration($day->paidLeave) : $defaultTime  );
-  #11 - Non-paid leave
-  $c = $t->get_cell($$rowPointer, 11);$c->set_type('time');$c->set_value(  $day->nonPaidLeave ? $ddF_hms->format_duration($day->nonPaidLeave) : $defaultTime  );
-  #12 - sick leave
-  $c = $t->get_cell($$rowPointer, 12);$c->set_type('time');$c->set_value(  $day->sickLeave ? $ddF_hms->format_duration($day->sickLeave) : $defaultTime  );
-  #13 - care-leave
-  $c = $t->get_cell($$rowPointer, 13);$c->set_type('time');$c->set_value(  $day->careLeave ? $ddF_hms->format_duration($day->careLeave) : $defaultTime  );
-  #14 - training
-  $c = $t->get_cell($$rowPointer, 14);$c->set_type('time');$c->set_value(  $day->learning ? $ddF_hms->format_duration($day->learning) : $defaultTime  );
-  #15 - eveningWork
-  $c = $t->get_cell($$rowPointer, 15);$c->set_type('time');$c->set_value(  $day->eveningWork ? $ddF_hms->format_duration($day->eveningWork) : $defaultTime  );
-  #16 - daily overwork 1
-  $c = $t->get_cell($$rowPointer, 16);$c->set_type('time');$c->set_value(  $day->dailyOverwork1 ? $ddF_hms->format_duration($day->dailyOverwork1) : $defaultTime  );
-  #17 - daily overwork 2
-  $c = $t->get_cell($$rowPointer, 17);$c->set_type('time');$c->set_value(  $day->dailyOverwork2 ? $ddF_hms->format_duration($day->dailyOverwork2) : $defaultTime  );
-  #18 - saturday?
-  $c = $t->get_cell($$rowPointer, 18);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSaturday : undef)  );
-  #19 - sunday?
-  $c = $t->get_cell($$rowPointer, 19);$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSunday : undef)  );
-  #20 - comments
-  $c = $t->get_cell($$rowPointer, 20);$c->set_type('string');$c->set_value(  $day->comments  );
+  my ($c, $v); my $r = 0;
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('date');   $c->set_value($ymd);
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->start ? $dtF_hms->format_datetime($day->start) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->end ? $dtF_hms->format_datetime($day->end) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->breaks ? $ddF_hms->format_duration($day->breaks) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->overwork ? $ddF_hms->format_duration($day->overwork) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->duration ? $ddF_hms->format_duration($day->duration) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $ddF_hms->format_duration($day->overworkAccumulation)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $ddF_hms->format_duration($day->vacationAccumulation)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day->remote)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day->benefits)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->vacation ? $ddF_hms->format_duration($day->vacation) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->paidLeave ? $ddF_hms->format_duration($day->paidLeave) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->nonPaidLeave ? $ddF_hms->format_duration($day->nonPaidLeave) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->sickLeave ? $ddF_hms->format_duration($day->sickLeave) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->careLeave ? $ddF_hms->format_duration($day->careLeave) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->learning ? $ddF_hms->format_duration($day->learning) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->eveningWork ? $ddF_hms->format_duration($day->eveningWork) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->dailyOverwork1 ? $ddF_hms->format_duration($day->dailyOverwork1) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->dailyOverwork2 ? $ddF_hms->format_duration($day->dailyOverwork2) : $defaultTime  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSaturday : undef)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSunday : undef)  );
+  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string'); $c->set_value(  $day->comments  );
 
   $l->debug("$$rowPointer: $ymd - ".($day ? $day : 'undef')) if $l->is_debug();
 }
