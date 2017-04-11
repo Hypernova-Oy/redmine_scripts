@@ -299,6 +299,9 @@ sub advancedDaily {
 
 subtest "simpleCsvExport", \&simpleCsvExport;
 sub simpleCsvExport {
+    my ($days, $csv, $fh, $row);
+
+    eval {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         my @wls = (
@@ -310,9 +313,8 @@ sub simpleCsvExport {
         t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
-    my ($days, $csv, $fh, $row);
 
-    t::lib::Helps::runPerlScript('scripts/getWorkTime.pl', ['--user', 1, '--file', $tmpWorklogFile, '--type', 'csv']);
+    t::lib::Helps::runPerlScript('scripts/getWorkTime.pl', ['--user', 1, '--file', $tmpWorklogFile, '--type', 'csv', '--year', 2016]);
 
     $csv = Text::CSV->new({binary => 1}) or die "Cannot use CSV: ".Text::CSV->error_diag ();
     open($fh, "<:encoding(utf8)", $tmpWorklogFile.'.csv') or die "$tmpWorklogFile.csv: $!";
@@ -349,6 +351,8 @@ sub simpleCsvExport {
 
     close($fh);
     unlink("$tmpWorklogFile.csv");
+    };
+    ok(0, $@) if $@;
 }
 
 subtest "simpleOdsExport", \&simpleOdsExport;
@@ -366,7 +370,7 @@ sub simpleOdsExport {
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user => 1})->asOds($tmpWorklogFile);
+    $days = RMS::Worklogs->new({user => 1, year => 2016})->asOds($tmpWorklogFile);
     ok($days);
     unlink("$tmpWorklogFile.ods");
 }

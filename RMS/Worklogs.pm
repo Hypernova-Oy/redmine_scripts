@@ -32,12 +32,38 @@ sub worklogs {
 }
 sub getWorklogs {
     my ($self) = @_;
+    $l->info("Getting worklogs for user ".$self->param('user')) if $l->is_info();
 
     my $user = RMS::Users::getUser($self->param('user'));
     my $dbh = RMS::Context->dbh();
     my $sth = $dbh->prepare("SELECT spent_on, created_on, hours, comments, issue_id, user_id, e.name as activity FROM time_entries te LEFT JOIN enumerations e ON te.activity_id = e.id WHERE user_id = ? ORDER BY spent_on ASC, created_on ASC");
     $sth->execute($user->{id});
     $self->{worklogs} = $sth->fetchall_arrayref({});
+    $l->info("Found '".($self->{worklogs} ? scalar(@{$self->{worklogs}}) : 0)."'worklogs for user ".$self->param('user')) if $l->is_info();
+    return $self->{worklogs};
+}
+
+sub getWorklogsForYear {
+    my ($self) = @_;
+    $l->info("Getting worklogs for user ".$self->param('user')) if $l->is_info();
+
+    my $user = RMS::Users::getUser($self->param('user'));
+    my $dbh = RMS::Context->dbh();
+    my $sth = $dbh->prepare(
+        "SELECT spent_on, created_on, hours, comments, issue_id, user_id, e.name as activity \n".
+        "FROM time_entries te \n".
+        "    LEFT JOIN enumerations e ON te.activity_id = e.id \n".
+        "WHERE user_id = ? \n".
+        "    AND spent_on >= ? \n".
+        "    AND spent_on <= ? \n".
+        "ORDER BY spent_on ASC, created_on ASC"
+    );
+    $sth->execute($user->{id},
+                  $self->param('year').' 00:00:00',
+                  $self->param('year').' 23:59:59'
+    );
+    $self->{worklogs} = $sth->fetchall_arrayref({});
+    $l->info("Found '".($self->{worklogs} ? scalar(@{$self->{worklogs}}) : 0)."'worklogs for user ".$self->param('user')) if $l->is_info();
     return $self->{worklogs};
 }
 
@@ -52,12 +78,12 @@ sub asDays () {
 
 sub asOds {
     my ($self, $filePath) = @_;
-    return RMS::Worklogs::Exporter->new({file => $filePath, worklogDays => $self->asDays()})->asOds;
+    return RMS::Worklogs::Exporter->new({year => $self->param('year'), file => $filePath, worklogDays => $self->asDays()})->asOds;
 }
 
 sub asCsv {
     my ($self, $filePath) = @_;
-    return RMS::Worklogs::Exporter->new({file => $filePath, worklogDays => $self->asDays()})->asCsv;
+    return RMS::Worklogs::Exporter->new({year => $self->param('year'), file => $filePath, worklogDays => $self->asDays()})->asCsv;
 }
 
 sub params {
@@ -91,6 +117,7 @@ sub _calculateDays {
     my $prevOverworkAccumulation;
     my $prevVacationAccumulation;
     foreach my $ymd (sort keys %$dailies) {
+        $l->info("Creating day '$ymd'") if $l->is_info();
         my $worklogs = $dailies->{$ymd};
         my $day = RMS::Worklogs::Day->newFromWorklogs($ymd,
                                                       $prevOverworkAccumulation || DateTime::Duration->new(),

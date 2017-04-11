@@ -21,6 +21,7 @@ my $l = bless({}, 'RMS::Logger');
 @PARAM1 {
           worklogDays => RMS::Worklogs->asDays(),
           file => '/tmp/workdays',                      #suffix is appended based on the exported type
+          year => 2017,
         }
 
 =cut
@@ -43,6 +44,7 @@ sub new {
     worklogDays => $params->{worklogDays},
     file => $params->{file},
     baseOds => 'base4.ods',
+    year => $params->{year},
   };
 
   bless($self, $class);
@@ -95,6 +97,11 @@ sub asOds {
   foreach my $ymd (@dates) {
     my $day = $days->{$ymd};
     my ($y, $m, $d) = $ymd =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
+    if ($self->{year} && $y != $self->{year}) {
+      $l->debug("Day '$ymd' not in year '".$self->{year}."'") if $l->is_debug();
+      next;
+    }
+    $l->info("Exporting day '$ymd'") if $l->is_info();
     #Check if the month changes, so we reorient the pointer
     if (not($prevM) || $m ne $prevM) {
       _startMonth($t, $rowPointer, $y, $m, $d, $rowsPerMonth);
@@ -124,10 +131,15 @@ sub _startMonth {
   my ($t, $rowPointer, $y, $m, $d, $rowsPerMonth) = @_;
 
   #Calculate from where the next month begins
-  my $rowsUsedDuringPrevMonth = $$rowPointer % $rowsPerMonth;
-  my $neededToNextMonthStart = $rowsPerMonth - $rowsUsedDuringPrevMonth;
-  $l->debug("Starting a new month '$y-$m-$d' on row '$$rowPointer'. Rows preserved for month '$rowsPerMonth'. Rows used during the last month '$rowsUsedDuringPrevMonth'. Skipping '$neededToNextMonthStart' rows forward to start a new month.") if $l->is_debug;
-  $$rowPointer += $neededToNextMonthStart if $rowsUsedDuringPrevMonth;
+  if (1) { #Calculate the correct iterator position from the month requested.
+    $$rowPointer = ($m-1) * $rowsPerMonth; #cell coordinates start from 0. Months start from 1.
+    $l->debug("Starting a new month '$y-$m-$d' on row '$$rowPointer'. Rows preserved for month '$rowsPerMonth'. Calculating from month number") if $l->is_debug;
+  } else { #Use iterator to move to the next available month slot.
+    my $rowsUsedDuringPrevMonth = $$rowPointer % $rowsPerMonth;
+    my $neededToNextMonthStart = $rowsPerMonth - $rowsUsedDuringPrevMonth;
+    $l->debug("Starting a new month '$y-$m-$d' on row '$$rowPointer'. Rows preserved for month '$rowsPerMonth'. Rows used during the last month '$rowsUsedDuringPrevMonth'. Skipping '$neededToNextMonthStart' rows forward to start a new month.") if $l->is_debug;
+    $$rowPointer += $neededToNextMonthStart if $rowsUsedDuringPrevMonth;
+  }
 
   my $c; my $r=0;
   #            row,       col, value, formatter

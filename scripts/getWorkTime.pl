@@ -10,11 +10,13 @@ my $help;
 my $user;
 my $filePath;
 my @types;
+my $year;
 GetOptions(
     'h|help'      => \$help,
     'u|user:s'    => \$user,
     'f|file:s'    => \$filePath,
     't|type:s'    => \@types,
+    'y|year:s'    => \$year,
 );
 
 my $usage = <<USAGE;
@@ -32,10 +34,12 @@ Perfect for importing to LibreOffice and friends!
                 odt or/and csv
                 This is automatically appended to the --file
 
+  -y --year     Which year to extract, 2016, 2017, ...
+
 EXAMPLES:
 
-perl scripts/getWorkTime.pl -t csv -u 1 -f ~/workLogs.csv
-perl scripts/getWorkTime.pl -t csv -t odt -u 1 -f ~/workLogs.csv
+perl scripts/getWorkTime.pl -y 2017 -t csv -u 1 -f ~/workLogs.csv
+perl scripts/getWorkTime.pl -y 2016 -t csv -t odt -u 1 -f ~/workLogs.csv
 
 USAGE
 
@@ -60,7 +64,7 @@ unless (@types) {
     exit 0;
 }
 
-my $wollel = RMS::Worklogs->new({user => $user});
+my $wollel = RMS::Worklogs->new({user => $user, year => $year});
 foreach my $type (@types) {
     if ($type eq 'ods') {
         $wollel->asOds($filePath);
@@ -68,3 +72,5 @@ foreach my $type (@types) {
         $wollel->asCsv($filePath);
     }
 }
+
+1;

@@ -18,7 +18,11 @@ Executes a perl script as a part of this running test suite. Respecting mocked s
 sub runPerlScript {
     my ($scriptPath, $cliArgs) = @_;
     @ARGV = @$cliArgs;    #Set cli params for GetOpt::Long
-    do $scriptPath;  #Basically executes the script in this running program's context
+    unless (my $return = do $scriptPath) {  #Basically executes the script in this running program's context
+        die "couldn't parse $scriptPath: $@" if $@;
+        die "couldn't do $scriptPath: $!"    unless defined $return;
+        die "couldn't run $scriptPath"       unless $return;
+    }
 }
 
 =head2 worklogDefault
