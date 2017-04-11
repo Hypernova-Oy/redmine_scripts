@@ -7,6 +7,7 @@ use DateTime::Duration;
 
 use Params::Validate qw(:all);
 
+use RMS::Dates;
 use RMS::WorkRules::DB;
 
 =head1 SYNOPSIS
@@ -32,7 +33,11 @@ my $dayLength20170201 = DateTime->new(year => 2017, month => 2, day => 1);
 my $dayLength0715 = DateTime::Duration->new(hours => 7, minutes => 15);
 my $dayLength0721 = DateTime::Duration->new(hours => 7, minutes => 21);
 sub getDayLengthDt {
-  my ($self, $dt) = @_;
+  my ($dt) = @_;
+
+  #Day length is 0 if this is a weekend
+  my $dow = $dt->day_of_week;
+  return RMS::Dates::zeroDuration() if ($dow == 6 || $dow == 7);
 
   if (DateTime->compare($dt, $dayLength20170201) < 1) { #Pre 2017-02-01
     return $dayLength0715;
