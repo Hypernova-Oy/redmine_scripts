@@ -20,7 +20,7 @@ my $l = bless({}, 'RMS::Logger');
 
 @PARAM1 {
           worklogDays => RMS::Worklogs->asDays(),
-          file => '/tmp/workdays.odf',
+          file => '/tmp/workdays',                      #suffix is appended based on the exported type
         }
 
 =cut
@@ -51,6 +51,7 @@ sub new {
 
 sub asOds {
   my ($self) = @_;
+  my $file = $self->{file}.'.ods';
   my $days = $self->fillMissingDays( $self->{worklogDays} );
   my @dates = sort keys %{$days};
 
@@ -104,9 +105,10 @@ sub asOds {
     $$rowPointer++;
   }
 
-  $doc->save(target => $self->{file});
+  $l->info("Saving to '$file'") if $l->is_info();
+  $doc->save(target => $file);
   $doc->forget();
-  return $self->{file};
+  return $file;
 }
 
 sub _checksAndVerifications {
@@ -187,10 +189,12 @@ sub _writeDay {
 
 sub asCsv {
   my ($self) = @_;
+  my $file = $self->{file}.'.csv';
 
   my $csv = Text::CSV->new or die "Cannot use CSV: ".Text::CSV->error_diag ();
   $csv->eol("\n");
-  open my $fh, ">:encoding(utf8)", $self->{file} or die $self->{file}.": $!";
+  $l->info("Writing to '$file'") if $l->is_info();
+  open my $fh, ">:encoding(utf8)", $file or die "$file: $!";
 
   my $days = $self->{worklogDays};
   my @dates = sort keys %{$days};
@@ -219,7 +223,7 @@ sub asCsv {
     $csv->print($fh, $row);
   }
 
-  close $fh or die $self->{file}.": $!";
+  close $fh or die "$file: $!";
   return $days;
 }
 

@@ -9,14 +9,13 @@ use DateTime;
 use DateTime::Duration;
 use DateTime::Format::MySQL;
 use DateTime::Format::Duration;
-my $dtF_hms = DateTime::Format::Duration->new(
-                    pattern => '%p%H:%M:%S',
-                    normalise => 'ISO',
-                    base => DateTime->now(),
-                );
 
 use RMS::Dates;
 use RMS::Worklogs;
+
+use t::lib::Helps;
+
+my $tmpWorklogFile = '/tmp/workTime';
 
 subtest "fillMissingYMDs", \&fillMissingYMDs;
 sub fillMissingYMDs {
@@ -55,15 +54,57 @@ sub hoursToDuration {
     &$testSub('1.00033',   '+01:00:02');
 }
 
+subtest "guessStartTime", \&guessStartTime;
+sub guessStartTime {
+    my $testSub = sub {
+        my ($ymd, $worklogs, $expectedStartIso, $testName) = @_;
+        my $st = RMS::Worklogs::Day->guessStartTime($ymd, $worklogs);
+        $st = $st->iso8601() if $st;
+        is($st, $expectedStartIso, $testName || $expectedStartIso);
+    };
+
+    my @wls = (
+        {created_on => '2015-06-11 10:34:29', hours => 0.5},
+        {created_on => '2015-06-11 11:26:06', hours => 0.75},
+        {created_on => '2015-06-11 11:28:11', hours => 0.25},
+        {created_on => '2015-06-11 18:10:37', hours => 3},
+        {created_on => '2015-06-11 18:14:16', hours => 1},
+    );
+    &$testSub('2015-06-11', \@wls, '2015-06-11T10:04:29', 'No start time collaction');
+
+    @wls = (
+        {created_on => '2015-06-11 10:34:29', hours => 0.5},
+        {created_on => '2015-06-11 10:36:06', hours => 0.75},
+        {created_on => '2015-06-11 10:40:11', hours => 0.25},
+        {created_on => '2015-06-11 10:50:12', hours => 3}, #This time_entry is barely (1 second) outside the first work-event collation threshold of 10 minutes
+        {created_on => '2015-06-11 18:11:59', hours => 2},
+    );
+    &$testSub('2015-06-11', \@wls, '2015-06-11T09:04:29', 'Start time collaction');
+
+    @wls = (
+        {created_on => '2015-06-10 08:00:00', hours => 0.5},
+        {created_on => '2015-06-11 10:36:06', hours => 0.75},
+        {created_on => '2015-06-11 10:40:11', hours => 0.25},
+        {created_on => '2015-06-11 10:50:12', hours => 3}, #This time_entry is barely (1 second) outside the first work-event collation threshold of 10 minutes
+        {created_on => '2015-06-11 18:11:59', hours => 2},
+    );
+    &$testSub('2015-06-11', \@wls, '2015-06-11T09:36:06', 'First created_on-timestamp is for a wrong day? This time_entry is removed from the work-event collation');
+
+    @wls = (
+        {created_on => '2015-06-10 08:00:00', hours => 7.25},
+        {created_on => '2015-06-12 10:36:06', hours => 2},
+    );
+    &$testSub('2015-06-11', \@wls, undef, 'No valid created_on-timestamps available. Return undef.');
+}
+
 subtest "_verifyStartTime", \&_verifyStartTime;
 sub _verifyStartTime {
     my $_verifyStartTimeTest = sub {
         eval {
-            my ($expected, $start, $duration, $expectedUnderflow) = @_;
+            my ($day, $expected, $start, $duration, $expectedUnderflow) = @_;
             my ($h, $m) = $duration =~ /(\d+)/g;
 
-            my ($day, $expectedDt, $stDt, $underflowDuration);
-            $day = '2016-05-20';
+            my ($expectedDt, $stDt, $underflowDuration);
             $expectedDt = DateTime::Format::MySQL->parse_datetime( "$day $expected" );
             ($stDt, $underflowDuration) = RMS::Worklogs::Day->_verifyStartTime(
                             $day,
@@ -79,11 +120,11 @@ sub _verifyStartTime {
         }
     };
 
-    &$_verifyStartTimeTest('07:45:00', '2016-05-20 07:45:00', '08:00', '00:00:00');
-    &$_verifyStartTimeTest('03:45:00', '2016-05-20 03:45:00', '20:15', '00:00:00');
-    &$_verifyStartTimeTest('03:44:59', '2016-05-20 07:45:00', '20:15', '04:00:00');
-    &$_verifyStartTimeTest('03:44:59', undef,                 '20:15', '04:15:00');
-    &$_verifyStartTimeTest('00:00:00', '2016-05-19 23:30:00', '20:15', '00:00:00');
+    &$_verifyStartTimeTest('2016-05-20', '07:45:00', '2016-05-20 07:45:00', '08:00', '00:00:00');
+    &$_verifyStartTimeTest('2016-05-20', '03:45:00', '2016-05-20 03:45:00', '20:15', '00:00:00');
+    &$_verifyStartTimeTest('2016-05-20', '03:44:59', '2016-05-20 07:45:00', '20:15', '04:00:00');
+    &$_verifyStartTimeTest('2016-05-20', '03:44:59', undef,                 '20:15', '04:15:00');
+    &$_verifyStartTimeTest('2016-05-20', '00:00:00', '2016-05-19 23:30:00', '20:15', '00:00:00');
 }
 
 subtest "_verifyEndTime", \&_verifyEndTime;
@@ -159,7 +200,7 @@ sub simpleDaily {
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
             {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
 
@@ -168,7 +209,7 @@ sub simpleDaily {
     is(scalar(keys(%$days)), 1, "1 days");
 
     #      ($yms,  $day,           $startIso,             $endIso,         $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
-    testDay($k[0], $days->{$k[0]}, '2016-05-20T09:35:17', '2016-05-20T16:29:21', '+06:30:00', '+00:24:04', '-00:45:00', '+00:00:00', '+00:00:00', undef, undef, undef);
+    testDay($k[0], $days->{$k[0]}, '2016-05-20T08:50:17', '2016-05-20T16:29:21', '+06:30:00', '+01:09:04', '-00:45:00', '+00:00:00', '+00:00:00', undef, undef, undef);
 }
 
 subtest "advancedDailyLogging", \&advancedDaily;
@@ -234,10 +275,10 @@ sub advancedDaily {
             {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5,},
 
             {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5,}, #Bug: Negative break duration?
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:51:50', hours => 0.666,},
+            {spent_on => '2016-09-20', created_on => '2016-09-20 17:59:55', hours => 0.666,},
             {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25,},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
 
@@ -247,12 +288,12 @@ sub advancedDaily {
 
     #      ($yms,  $day,           $startIso,             $endIso,       $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
     testDay($k[0], $days->{$k[0]}, '2015-06-11T10:04:29', '2015-06-11T18:34:30', '+08:30:01', '+00:00:00', '+01:15:01', '+01:15:01', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
-    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:24:38', '2015-11-03T18:48:14', '+10:15:00', '+00:08:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:37:06', '2015-11-04T19:36:48', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:38:58',   undef,     undef,   '!END overflow 00:38:58!');
-    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:44:59', '2016-04-26T23:59:59', '+07:15:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:24:34',   undef,     undef,   '!START underflow 04:49:42!!END overflow 00:24:34!');
+    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:09:38', '2015-11-03T18:48:14', '+10:15:00', '+00:23:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:14:54', '2015-11-04T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!');
+    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:19:42', '2016-04-26T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   undef);
     testDay($k[4], $days->{$k[4]}, '2016-04-27T00:00:00', '2016-04-27T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:35:17', '2016-05-20T16:05:17', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:35:56',   undef,     undef,   '!END overflow 00:35:56!');
-    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 02:08:29!');
+    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:00:00', '2016-05-20T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!');
+    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!');
     testDay($k[7], $days->{$k[7]}, '2016-09-20T12:49:45', '2016-09-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!');
 }
 
@@ -266,24 +307,23 @@ sub simpleCsvExport {
             {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
             {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user => 1})->asCsv('/tmp/workTime.csv');
-    is(scalar(keys(%$days)), 7, "7 days");
+    t::lib::Helps::runPerlScript('scripts/getWorkTime.pl', ['--user', 1, '--file', $tmpWorklogFile, '--type', 'csv']);
 
     $csv = Text::CSV->new({binary => 1}) or die "Cannot use CSV: ".Text::CSV->error_diag ();
-    open($fh, "<:encoding(utf8)", '/tmp/workTime.csv') or die "/tmp/workTime.csv: $!";
+    open($fh, "<:encoding(utf8)", $tmpWorklogFile.'.csv') or die "$tmpWorklogFile.csv: $!";
 
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-20',          "1st day");
-    is($row->[1], '10:00:00', "1st start");
-    is($row->[2], '12:00:00', "1st end");
-    is($row->[3], '+00:00:00', "1st breaks");
-    is($row->[4], '+02:00:00', "1st duration");
-    is($row->[5], '-05:15:00', "1st overwork");
+    is($row->[1], '10:00:00',            "1st start");
+    is($row->[2], '12:00:00',            "1st end");
+    is($row->[3], '+00:00:00',           "1st breaks");
+    is($row->[4], '+02:00:00',           "1st duration");
+    is($row->[5], '-05:15:00',           "1st overwork");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-21',          '2nd day filled');
     is($row->[1], '',                    "2nd start empty");
@@ -296,19 +336,19 @@ sub simpleCsvExport {
     is($row->[1], '',                    "3rd start empty");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-23',          '4th day');
-    is($row->[1], '10:00:00', "4th start");
+    is($row->[1], '10:00:00',            "4th start");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-24',          '5th day');
-    is($row->[1], '10:00:00', "5th start");
+    is($row->[1], '10:00:00',            "5th start");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-25',          '6th day filled');
     is($row->[1], '',                    "6th start empty");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-26',          '7th day');
-    is($row->[1], '10:00:00', "7th start");
+    is($row->[1], '10:00:00',            "7th start");
 
     close($fh);
-    `rm /tmp/workTime.csv`;
+    unlink("$tmpWorklogFile.csv");
 }
 
 subtest "simpleOdsExport", \&simpleOdsExport;
@@ -321,14 +361,14 @@ sub simpleOdsExport {
             {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999, activity => ''},
             {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999, activity => ''},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user => 1})->asOds('/tmp/workTime.ods');
+    $days = RMS::Worklogs->new({user => 1})->asOds($tmpWorklogFile);
     ok($days);
-#    `rm /tmp/workTime.ods`;
+    unlink("$tmpWorklogFile.ods");
 }
 
 done_testing();
@@ -347,19 +387,4 @@ sub testDay {
     is($day->benefits, $benefits, "$yms benefits");
     is($day->remote,   $remote,   "$yms remote");
     is($day->comments, $comments, "$yms comments");
-}
-
-=head2 _worklogDefault
-
-Inject default keys to a bunch of time_entry-rows
-
-=cut
-
-sub _worklogDefault {
-    my ($wls, $defaults) = @_;
-    foreach my $wl (@$wls) { #Append defaults for each time_entry
-        foreach my $key (keys %$defaults) {
-            $wl->{$key} = $defaults->{$key};
-        }
-    }
 }

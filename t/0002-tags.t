@@ -8,7 +8,7 @@ use RMS::Dates;
 use RMS::Worklogs;
 use RMS::Worklogs::Tags;
 
-
+use t::lib::Helps;
 
 
 subtest "parseTags", \&parseTags;
@@ -58,7 +58,7 @@ sub extractTags {
             {comments => '{{REIMBURSED 05:00 @bossman}}',
              spent_on => '2017-05-23', created_on => '2017-05-23 16:05:02', hours => 8.5},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
         return \@wls;
     });
 
@@ -105,17 +105,3 @@ sub extractTags {
 
 done_testing();
 
-=head2 _worklogDefault
-
-Inject default keys to a bunch of time_entry-rows
-
-=cut
-
-sub _worklogDefault {
-    my ($wls, $defaults) = @_;
-    foreach my $wl (@$wls) { #Append defaults for each time_entry
-        foreach my $key (keys %$defaults) {
-            $wl->{$key} = $defaults->{$key};
-        }
-    }
-}

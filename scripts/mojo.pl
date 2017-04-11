@@ -1,5 +1,12 @@
 #!/usr/bin/perl
 
+############################################
+#################DEPRECATED#################
+# Instead of a mojo server, collect worklogs via cronjobs and send to a ftp-server
+############################################
+
+
+
 ## Omnipresent pragma setter
 use Modern::Perl;
 use utf8;

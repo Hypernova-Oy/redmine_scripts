@@ -44,8 +44,10 @@ sub getWorklogs {
 sub asDays () {
     my ($self) = @_;
 
+    return $self->{worklogDays} if $self->{worklogDays};
     my $dailies = $self->_flattenDays();
-    return $self->_calculateDays($dailies);
+    $self->{worklogDays} = $self->_calculateDays($dailies);
+    return $self->{worklogDays};
 }
 
 sub asOds {

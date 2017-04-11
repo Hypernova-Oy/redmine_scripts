@@ -9,10 +9,12 @@ use RMS::Worklogs;
 my $help;
 my $user;
 my $filePath;
+my @types;
 GetOptions(
     'h|help'      => \$help,
     'u|user:s'    => \$user,
     'f|file:s'    => \$filePath,
+    't|type:s'    => \@types,
 );
 
 my $usage = <<USAGE;
@@ -24,11 +26,16 @@ Perfect for importing to LibreOffice and friends!
 
   -u --user     User id or the login name of the Redmine user whose worklogs you want to export.
 
-  -f --file     Where to write the .csv?
+  -f --file     Where to write the export? Path and filename Without the file suffix.
+
+  -t --type     What export types are used?
+                odt or/and csv
+                This is automatically appended to the --file
 
 EXAMPLES:
 
-perl scripts/getWorkTime.pl -u 1 -f ~/workLogs.csv
+perl scripts/getWorkTime.pl -t csv -u 1 -f ~/workLogs.csv
+perl scripts/getWorkTime.pl -t csv -t odt -u 1 -f ~/workLogs.csv
 
 USAGE
 
@@ -37,13 +44,27 @@ if ($help) {
     print $usage;
     exit 0;
 }
-unless ($user && $filePath) {
+unless ($user) {
     print $usage.
-          "You must define atleast --user\n";
+          "You must define --user\n";
+    exit 0;
+}
+unless ($filePath) {
+    print $usage.
+          "You must define --file\n";
+    exit 0;
+}
+unless (@types) {
+    print $usage.
+          "You must define atleast one --type\n";
     exit 0;
 }
 
-
-
-RMS::Worklogs->new({user => $user})->asCsv($filePath);
-
+my $wollel = RMS::Worklogs->new({user => $user});
+foreach my $type (@types) {
+    if ($type eq 'ods') {
+        $wollel->asOds($filePath);
+    } elsif ($type eq 'csv') {
+        $wollel->asCsv($filePath);
+    }
+}

@@ -7,6 +7,7 @@ use Test::MockModule;
 use RMS::Worklogs;
 use RMS::WorkRules;
 
+use t::lib::Helps;
 
 my $sickLeave = $RMS::WorkRules::DB::specialIssues{sickLeaveIssueId};
 my $vacation  = $RMS::WorkRules::DB::specialIssues{vacationIssueId};
@@ -103,7 +104,7 @@ sub overworkAccumulation {
             #Wednesday is normal.
             {spent_on => '2017-05-03', created_on => '2017-05-03 16:30:00', hours => 7.5},
         );
-        _worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => $testDude});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => $testDude});
         return \@wls;
     });
 
@@ -124,7 +125,7 @@ sub overworkAccumulation {
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-05'}->overworkAccumulation() ), '05:12:00', '04-05 overwork remains the same');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-06'}->overworkAccumulation() ), '06:51:00', '04-06 overwork accumulated');
 
-    ## user testDude has 12 vacations from a prior work contract
+    ##TODO:: user testDude has 12 vacations from a prior work contract
     is(RMS::Dates::formatDurationHMS( $days->{'2017-03-29'}->vacationAccumulation() ), '86:24:00', '03-29 prior contract vacations retained');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-03-30'}->vacationAccumulation() ), '06:48:00', '03-30 vacation accumulated');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-03-31'}->vacationAccumulation() ), '05:12:00', '03-31 vacation partially reimbursed');
@@ -145,7 +146,7 @@ sub overworkAccumulation {
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-05'}->duration() ),             '07:21:00', '04-05 sick leave partially, but workday duration is as expected');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-04-05'}->sickLeave() ),            '05:00:00', '04-05 sick leave partially');
 
-    $days = RMS::Worklogs->new({user => 1})->asOds('/tmp/workTime.ods');
+    $days = RMS::Worklogs->new({user => 1})->asOds('/tmp/workTime');
     ok($days, '.ods generated');
 #    `rm /tmp/workTime.ods`;
     };
@@ -156,17 +157,3 @@ sub overworkAccumulation {
 done_testing();
 
 
-=head2 _worklogDefault
-
-Inject default keys to a bunch of time_entry-rows
-
-=cut
-
-sub _worklogDefault {
-    my ($wls, $defaults) = @_;
-    foreach my $wl (@$wls) { #Append defaults for each time_entry
-        foreach my $key (keys %$defaults) {
-            $wl->{$key} = $defaults->{$key} unless $wl->{$key};
-        }
-    }
-}

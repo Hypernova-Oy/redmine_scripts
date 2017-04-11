@@ -1,6 +1,6 @@
 package RMS::Worklogs::Day;
 
-use Modern::Perl;
+use 5.18.2;
 use Carp;
 use Params::Validate qw(:all);
 
@@ -96,6 +96,7 @@ a flattened day-representation of the events happened within those worklog entri
 @PARAM2 String, YYYY-MM-DD of the day being created
 @PARAM3 DateTime::Duration, How much overwork has been accumulated up to this day. Exclusive of this day.
 @PARAM4 DateTime::Duration, How much vacation has been accumulated up to this day. Exclusive of this day.
+@PARAM5 ARRAYref  of redmine.time_entry-rows for the given day.
 
 =cut
 
@@ -131,10 +132,8 @@ sub newFromWorklogs {
 
 
     #Hope to find some meaningful start time
-    if (not($startDt) && $wls[0]->{created_on} =~ /^$dayYMD/) {
-        $startDt = DateTime::Format::MySQL->parse_datetime( $wls[0]->{created_on} );
-        $startDt->subtract_duration( RMS::Dates::hoursToDuration( $wls[0]->{hours} ) );
-        $l->trace("$dayYMD -> Start ".$startDt->hms()) if $l->is_trace();
+    if (not($startDt)) {
+        $startDt = $class->guessStartTime($dayYMD, \@wls);
     }
 
     #Hope to find some meaningful end time from the last worklog
@@ -326,6 +325,55 @@ sub sickLeave {
 }
 sub learning {
     return shift->{learning};
+}
+
+=head2 guessStartTime
+
+Looks for the earliest time_entries which have been created in a rapid succession.
+Presumably these constitute as the starting time of the day.
+Eg. one can log all the work done during the day when leaving office, spread over multiple issues,
+then the first created_by-timestamp only tells when the first time_entry has been created.
+Actually we need to go back in time the combined duration of time_entries logged when leaving office,
+instead of the duration of the first time_entry.
+
+If there are no time_entries in close succession, takes the earliest created_by-time.
+
+@PARAM1 ARRAYRef of redmine.time_entry HASHRefs sorted by created_on-datetime from earliest to latest
+@RETURNS DateTime, start time of the day
+
+=cut
+
+my $timeEntryLoggingSuccessionDelay = DateTime::Duration->new(minutes => 10); #How closely together time_entries need to be logged, to be considered a single work-event?
+sub guessStartTime {
+    my ($class, $dayYMD, $wls) = @_;
+
+    my @startingWorkEvent;
+    for (my $i=0 ; $i<scalar(@$wls) ; $i++) {
+        next unless ($wls->[$i]->{created_on} =~ /^$dayYMD/); #Skip time_entries not from the given day
+        push(@startingWorkEvent, $wls->[$i]) if (not(scalar(@startingWorkEvent))); #The first work event always has atleast the first valid time_entry
+        last unless $wls->[$i+1];
+        my $dt0 = DateTime::Format::MySQL->parse_datetime( $wls->[$i]->{created_on} );
+        my $dt1 = DateTime::Format::MySQL->parse_datetime( $wls->[$i+1]->{created_on} );
+        my $differenceDd = $dt1->subtract_datetime($dt0); #Because $dt0 is always < $dt1, $differenceDd is always positive
+
+        if (DateTime::Duration->compare($differenceDd, $timeEntryLoggingSuccessionDelay) <= 0) { #If difference is less than equal to the given threshold, we consider these time_entries as one workEvent
+            push(@startingWorkEvent, $wls->[$i+1]);
+            $l->trace("$dayYMD -> Found start time followup ymd='".$dt0->ymd()." -> ".$dt1->ymd()."', hours='".$wls->[$i]->{hours}." -> ".$wls->[$i+1]->{hours}."'") if $l->is_trace();
+        }
+        else {
+            last; #No point in iterating if there has been too big a gap between logging time_entries
+        }
+    }
+
+    return undef unless (scalar(@startingWorkEvent));
+    #Calculate the combined duration of the starting work event
+    my $combinedDuration = DateTime::Duration->new();
+    $combinedDuration->add_duration( RMS::Dates::hoursToDuration( $_->{hours} ) ) for @startingWorkEvent;
+
+    my $firstTimeEntryCreatedDt = DateTime::Format::MySQL->parse_datetime( $startingWorkEvent[0]->{created_on} );
+    my $startDt = $firstTimeEntryCreatedDt->clone->subtract_duration($combinedDuration);
+    $l->debug("$dayYMD -> start='".$firstTimeEntryCreatedDt->hms()." -> ".$startDt->hms()."', duration='".RMS::Dates::formatDurationHMS($combinedDuration)."'") if $l->is_debug();
+    return $startDt;
 }
 
 =head2 $class->_verifyStartTime
