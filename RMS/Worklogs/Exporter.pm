@@ -1,7 +1,7 @@
 package RMS::Worklogs::Exporter;
 
 ## Omnipresent pragma setter
-use Modern::Perl;
+use 5.18.2;
 use utf8;
 use Carp;
 use autodie;

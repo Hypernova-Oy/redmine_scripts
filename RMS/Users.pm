@@ -1,29 +1,25 @@
-package RMS::Worklogs;
-
-use Modern::Perl;
+## Omnipresent pragma setter
+use 5.18.2;
+use utf8;
 use Carp;
+use autodie;
+$Carp::Verbose = 'true'; #die with stack trace
+## Pragmas set
+
+package RMS::Users;
 
 use RMS::Context;
 
-sub new {
-    my ($class, $params) = @_;
-
-    my $self = {params => $params};
-    bless($self, $class);
-    return $self;
-}
-
 sub getUser {
-    my ($self, $userid, $username) = @_;
-    return $self->{users}->{$userid || $username} if ($self->{users} && $self->{users}->{$userid || $username});
+    my ($useridOrName) = @_;
 
     my $dbh = RMS::Context->dbh();
     my $sth = $dbh->prepare("SELECT * FROM users WHERE login = ? OR id = ?");
-    $sth->execute($self->param('user_id'));
+    $sth->execute($useridOrName, $useridOrName);
     my $users = $sth->fetchall_arrayref({});
-    die "getUser():> Too many results with ".($userid || '')." or ".($username || '') if (scalar(@$users) > 1);
-    die "getUser():> No results with ".($userid || '')." or ".($username || '') unless (scalar(@$users));
-    return $self->{users}->{$userid || $username} = shift @$users;
+    die "getUser():> Too many results with ".($useridOrName || '') if (scalar(@$users) > 1);
+    die "getUser():> No results with ".($useridOrName || '') unless (scalar(@$users));
+    return shift @$users;
 }
 
 1;

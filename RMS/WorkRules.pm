@@ -66,10 +66,10 @@ How many days/hours of vacations are "earned" every month?
 
 our @validGVAD = (
   {type => SCALAR}, #userId
-  {isa => 'DateTime::Duration'}, #dayDt
+  {isa => 'DateTime'}, #dayDt
 );
 sub getVacationAccumulationDuration {
-  my ($userId, $dayDt) = validate(@_, @validGVAD);
+  my ($userId, $dayDt) = validate_pos(@_, @validGVAD);
   #TODO!
   return $RMS::WorkRules::DB::vacationAccumulationDuration;
 }

@@ -13,6 +13,10 @@ use RMS::WorkRules;
 use RMS::Logger;
 my $l = bless({}, 'RMS::Logger');
 
+#We accumulate vacations on the given day, or one of the days after it if that day is not present in the worklogs.
+#Keep track have we already accumulated vacations for the given month to avoid accumulating them many times over.
+my %vacationsAccumulatedMonths;
+
 =head2 new
 
     RMS::Worklogs::Day->new({
@@ -224,10 +228,13 @@ sub setVacationAccumulation {
     $vacationAccumulation = $vacationAccumulation->clone();
     $l->trace("\$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     #If today is the day when new vacations become available, add those vacations to the vacations quota
-    if ($self->start->day == RMS::WorkRules::getVacationAccumulationDayOfMonth()) {
+    if ($self->start->day >= RMS::WorkRules::getVacationAccumulationDayOfMonth() &&
+        not($vacationsAccumulatedMonths{ $self->start->ymd() })) {
+
         my $newVacations = RMS::WorkRules::getVacationAccumulationDuration($self->userId, $self->start);
         $vacationAccumulation->add_duration(  $newVacations  );
         $l->trace("New vacations earned '".RMS::Dates::formatDurationHMS($newVacations)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
+        $vacationsAccumulatedMonths{ $self->start->ymd() } = 1;
     }
     #Check if vacations are used
     if ($self->vacation) {
@@ -306,6 +313,9 @@ sub isSunday {
     }
     return $_[0]->{isSunday} if (not($_[0]->start));
     return 1 if $_[0]->start->day_of_week == 7;
+}
+sub userId {
+    return shift->{userId};
 }
 #Special work type accessors
 sub vacation {
