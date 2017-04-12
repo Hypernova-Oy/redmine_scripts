@@ -86,8 +86,8 @@ sub extractTags {
     is(RMS::Dates::formatDurationPHMS($days->{$k[0]}->breaks()),   '+01:30:00', "$k[0] breaks");
     is(RMS::Dates::formatDurationPHMS($days->{$k[0]}->overwork()), '+06:30:00', "$k[0] overwork");
     is(RMS::Dates::formatDurationPHMS($days->{$k[0]}->overworkAccumulation()), '+06:30:00', "$k[0] overworkAccumulation");
-    is($days->{$k[0]}->benefits(),         1,                     "$k[0] Benefits allowed");
-    is($days->{$k[0]}->remote(),           1,                     "$k[0] Worked remotely");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[0]}->remote()),  '+00:30:00',  "$k[0] Worked remotely");
+    is($days->{$k[0]}->benefits(),         1,                      "$k[0] Benefits allowed");
     like(  $days->{$k[0]}->comments(),     qr/\{\{confuse\}\}/i,   "$k[0] Unknown tag {{confuse}} caught in the comments");
     unlike($days->{$k[0]}->comments(),     qr/BEGIN/i,             "$k[0] Known tags trimmed from the comments 1");
     unlike($days->{$k[0]}->comments(),     qr/BENEFITS/i,          "$k[0] Known tags trimmed from the comments 2");
@@ -102,24 +102,24 @@ sub extractTags {
     is(RMS::Dates::formatDurationPHMS($days->{$k[1]}->breaks()),   '+00:00:00', "$k[1] breaks");
     is(RMS::Dates::formatDurationPHMS($days->{$k[1]}->overwork()), '+08:30:00', "$k[1] overwork");
     is(RMS::Dates::formatDurationPHMS($days->{$k[1]}->overworkAccumulation()), '+15:00:00', "$k[1] overworkAccumulation");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[1]}->remote()),   '+08:30:00', "$k[1] Worked remotely");
     is($days->{$k[1]}->benefits(),       1,                       "$k[1] Benefits allowed");
-    is($days->{$k[1]}->remote(),         1,                       "$k[1] Worked remotely");
     like($days->{$k[1]}->comments(), qr/!END overflow 00:30:00!/, "$k[1] Warning about ENDing time calculation overflow");
     is($days->{$k[1]}->comments(), '!END overflow 00:30:00! - . This is a nice day.',    "$k[1] Known tags trimmed from the comment");
 
-    is(RMS::Dates::formatDurationPHMS($days->{$k[2]}->overworkReimbursed()), '+08:00:00',   "$k[2] Overwork paid");
-    is($days->{$k[2]}->overworkReimbursedBy(), '@bossman',                                  "$k[2] Overwork paid by");
-    is(RMS::Dates::formatDurationPHMS($days->{$k[2]}->overwork()), '+01:09:00',             "$k[2] overwork");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[2]}->overworkReimbursed()),   '+08:00:00', "$k[2] Overwork paid");
+    is($days->{$k[2]}->overworkReimbursedBy(),                                 '@bossman',  "$k[2] Overwork paid by");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[2]}->overwork()),             '+01:09:00', "$k[2] overwork");
     is(RMS::Dates::formatDurationPHMS($days->{$k[2]}->overworkAccumulation()), '+08:09:00', "$k[2] overworkAccumulation");
 
-    is(RMS::Dates::formatDurationPHMS($days->{$k[3]}->overworkReimbursed()), '+05:00:00',   "$k[3] Overwork reimbursed");
-    is($days->{$k[3]}->overworkReimbursedBy(), '@bossman',                                  "$k[3] Overwork reimbursed by");
-    is(RMS::Dates::formatDurationPHMS($days->{$k[3]}->overwork()), '+01:09:00',             "$k[3] overwork");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[3]}->overworkReimbursed()),   '+05:00:00', "$k[3] Overwork reimbursed");
+    is($days->{$k[3]}->overworkReimbursedBy(),                                 '@bossman',  "$k[3] Overwork reimbursed by");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[3]}->overwork()),             '+01:09:00', "$k[3] overwork");
     is(RMS::Dates::formatDurationPHMS($days->{$k[3]}->overworkAccumulation()), '+04:18:00', "$k[3] overworkAccumulation");
 
-    is(RMS::Dates::formatDurationPHMS($days->{$k[4]}->overworkReimbursed()),   '-01:00:00',   "$k[4] Overwork added to the quote via negative reimbursement");
-    is($days->{$k[4]}->overworkReimbursedBy(), '@bossman',                                  "$k[4] Overwork reimbursed by");
-    is(RMS::Dates::formatDurationPHMS($days->{$k[4]}->overwork()),             '+00:00:00',              "$k[4] overwork");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[4]}->overworkReimbursed()),   '-01:00:00', "$k[4] Overwork added to the quote via negative reimbursement");
+    is($days->{$k[4]}->overworkReimbursedBy(),                                 '@bossman',  "$k[4] Overwork reimbursed by");
+    is(RMS::Dates::formatDurationPHMS($days->{$k[4]}->overwork()),             '+00:00:00', "$k[4] overwork");
     is(RMS::Dates::formatDurationPHMS($days->{$k[4]}->overworkAccumulation()), '+05:18:00', "$k[4] overworkAccumulation");
 
     };

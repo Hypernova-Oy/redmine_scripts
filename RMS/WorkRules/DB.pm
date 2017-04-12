@@ -20,10 +20,16 @@ Easily keep track of who a specific user_id actually is
 
 our %userIdToName = (
     1 => 'kivilahtio',
+    22 => 'taskula',
+    9 => 'jraisa',
+    20 => 'janPasi',
     666 => 'testDude',
 );
 our %nameToUserId = (
     kivilahtio => 1,
+    taskula => 22,
+    jraisa => 9,
+    janPasi => 20,
     testDude => 666,
 );
 
@@ -83,6 +89,9 @@ our %vacationsFromPriorContracts = (
 );
 our %vacationAccumulationWorkdays = (
     $nameToUserId{'kivilahtio'} => 3,
+    $nameToUserId{'taskula'} => 2,
+    $nameToUserId{'jraisa'} => 2,
+    $nameToUserId{'janPasi'} => 2,
     $nameToUserId{'testDude'} => 2,
 );
 

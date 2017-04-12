@@ -31,6 +31,13 @@ sub formatDurationHMS {
     return sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
 }
 
+sub formatDurationOdf {
+    return '+00:00:00' unless $_[0];
+    #return $dtF_phms->format_duration(shift);
+    my ($positive, $hours, $minutes, $seconds, $sumOfDurationAsSeconds) = durationToPHMSS($_[0]);
+    return ($positive ? '' : '-').sprintf("PT%02dH%02dM%02dS", $hours, $minutes, $seconds);
+}
+
 sub hoursToDuration {
     my ($hours) = @_;
 

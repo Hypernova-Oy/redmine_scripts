@@ -37,7 +37,7 @@ our %validations = (
     duration =>   {isa => 'DateTime::Duration'},
     specialDurations => {type => HASHREF, optional => 1},
     benefits =>   {type => SCALAR|UNDEF},
-    remote   =>   {type => SCALAR|UNDEF},
+    remote   =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
     overwork =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
     overworkReimbursed =>   {callbacks => { isa_undef => sub {    not(defined($_[0])) || $_[0]->isa('DateTime::Duration')    }}, optional => 1},
     overworkReimbursedBy => {type => SCALAR|UNDEF, depends => 'overworkReimbursed'},
@@ -116,10 +116,8 @@ sub newFromWorklogs {
     my %specialDurations;
     $workdayDuration = DateTime::Duration->new();
     foreach my $wl (@wls) {
-        push(@comments, $wl->{comments}) if $wl->{comments};
-        $l->trace("$dayYMD -> Comment prepended '".$wl->{comments}."'") if $wl->{comments} && $l->is_trace();
-
-        $workdayDuration = $workdayDuration->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} ));
+        my $timeEntryDuration = RMS::Dates::hoursToDuration( $wl->{hours} );
+        $workdayDuration = $workdayDuration->add_duration($timeEntryDuration);
         $l->trace("$dayYMD -> Duration grows to ".RMS::Dates::formatDurationHMS($workdayDuration)) if $l->is_trace();
 
         my $specialIssue = RMS::WorkRules::getSpecialWorkCategory($wl->{issue_id}, $wl->{activity});
@@ -127,9 +125,28 @@ sub newFromWorklogs {
             $specialDurations{$specialIssue} = ($specialDurations{$specialIssue}) ? $specialDurations{$specialIssue}->add_duration(RMS::Dates::hoursToDuration( $wl->{hours} )) : RMS::Dates::hoursToDuration( $wl->{hours} );
             $l->trace("$dayYMD -> Special work category '$specialIssue' grows to ".RMS::Dates::formatDurationHMS($specialDurations{$specialIssue})) if $l->is_trace();
         }
+
+        if ($wl->{comments}) {
+            my ($_benefits, $_remote, $_startDt, $_endDt, $_overworkReimbursed, $_overworkReimbursedBy, $_comments) = RMS::Worklogs::Tags::parseTags($wl->{comments});
+            push(@comments, $_comments);
+            $l->trace("$dayYMD -> Comment prepended '".$wl->{comments}."'") if $wl->{comments} && $l->is_trace();
+
+            ##{{REMOTE}} tag was found. We increment the remote working duration for this day
+            if ($_remote) {
+                if ($remote) {
+                    $remote->add_duration($timeEntryDuration);
+                }
+                else {
+                    $remote = $timeEntryDuration;
+                }
+            }
+            $benefits = $_benefits unless $benefits;
+            $startDt = $_startDt unless $startDt;
+            $endDt = $_endDt unless $endDt;
+            $overworkReimbursed = $_overworkReimbursed unless $overworkReimbursed;
+            $overworkReimbursedBy = $_overworkReimbursedBy unless $overworkReimbursedBy;
+        }
     }
-    my $comments = join(' ', @comments);
-    ($benefits, $remote, $startDt, $endDt, $overworkReimbursed, $overworkReimbursedBy, $comments) = RMS::Worklogs::Tags::parseTags($comments);
 
 
     #Hope to find some meaningful start time
@@ -151,7 +168,7 @@ sub newFromWorklogs {
     return RMS::Worklogs::Day->new({
         start => $startDt, end => $endDt, breaks => $breaksDuration, duration => $workdayDuration,
         overflow => $overflowDuration, underflow => $underflowDuration, benefits => $benefits,
-        remote => $remote, comments => $comments, specialDurations => \%specialDurations,
+        remote => $remote, comments => join(' ', @comments), specialDurations => \%specialDurations,
         overworkReimbursed => $overworkReimbursed, overworkReimbursedBy => $overworkReimbursedBy,
         overworkAccumulation => $overworkAccumulation, vacationAccumulation => $vacationAccumulation,
         userId => $wls[0]->{user_id},
