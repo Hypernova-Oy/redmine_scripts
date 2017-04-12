@@ -1,13 +1,13 @@
 use 5.18.2;
 use utf8;
+
+package t::lib::Helps;
+
 use Try::Tiny;
 use Scalar::Util qw(blessed);
 use Carp;
 use autodie;
 $Carp::Verbose = 'true'; #die with stack trace
-
-
-package t::lib::Helps;
 
 =head2 runPerlScript
 
@@ -39,3 +39,5 @@ sub worklogDefault {
         }
     }
 }
+
+1;

@@ -8,6 +8,12 @@ use RMS::Worklogs;
 use RMS::WorkRules;
 
 use t::lib::Helps;
+use t::lib::Mocks;
+
+
+my $moduleRMSUsers = Test::MockModule->new('RMS::Users');
+$moduleRMSUsers->mock('getUser', \&t::lib::Mocks::RMS_Users_getUser);
+
 
 my $sickLeave = $RMS::WorkRules::DB::specialIssues{sickLeaveIssueId};
 my $vacation  = $RMS::WorkRules::DB::specialIssues{vacationIssueId};
@@ -22,138 +28,164 @@ sub overworkAccumulation {
     $module->mock('getWorklogs', sub {
         my @wls = (
             #We are only interested in 2017, so drop any time_entries outside 2017. However overwork and vacations are accumulated from the previous year!
-            {spent_on => '2016-12-28', created_on => '2016-12-28 13:45:00', hours => 6.5},
+            {spent_on => '2016-12-30', created_on => '2016-12-30 13:45:00', hours => 6.5},
 
-            #Print something for January to test that the month begins correctly in the _data_-layer
+            #Tuesday. Print something for January to test that the month begins correctly in the _data_-layer
             {spent_on => '2017-01-03', created_on => '2017-01-03 17:45:00', hours => 8},
+            #Sunday 2017-01-15 should get new vacations to spend! These are added to the vacations quota.
+            #
+            #January encumbers a lot of negative overwork due to missing days
 
-            #Wednesday is a long day. Get some overwork accumulation for the next month's report
-            {spent_on => '2017-02-26', created_on => '2017-02-26 17:45:00', hours => 10.75},
-            #Thursday is a long day. Get some overwork accumulation for the next month's report
+            ####  Month changes to February  ####
+            #February encumbers a lot of negative overwork due to missing days
+            #Wednesday 2017-02-15 should get new vacations to spend! These are added to the vacations quota.
+            #
+            #Sunday is a long day. Get a lot of overwork accumulation since all work is overwork
+            {spent_on => '2017-02-26', created_on => '2017-02-26 17:45:00', hours => 3.5},
+            #Monday is a long day. Get some overwork accumulation for the next month's report
             {spent_on => '2017-02-27', created_on => '2017-02-27 17:45:00', hours => 10.75},
-            #Friday is a long day. 5h of overwork paid today, subtracted from the accumulated overwork total
-            {spent_on => '2017-02-28', created_on => '2017-02-28 17:45:00', hours => 10.75, comments => '{{PAID 05:00 @bossman}}. Bossman paid me overwork for 5 hours.'},
-            ####  Month changes to April  ####
+            #Tuesday is a long day. MAde a deal with the boss and negative overwork is forgiven :)
+            {spent_on => '2017-02-28', created_on => '2017-02-28 17:45:00', hours => 10.75, comments => '{{PAID -274:09 @bossman}}. Bossman forgave my underwork.'},
+
+            ####  Month changes to March  ####
             #Saturday
             #
             #Sunday
             #
-            #A regular monday, got sick midway
-            {spent_on => '2017-03-03', created_on => '2017-03-03 10:30:00', hours => 2.5},
-            {spent_on => '2017-03-03', created_on => '2017-03-03 11:30:00', hours => 0.75, activity => $learning},
-            {spent_on => '2017-03-03', created_on => '2017-03-03 15:30:00', hours => 4.1,  issue_id => $sickLeave},
-            #Tuesday, still sick
-            {spent_on => '2017-03-04', created_on => '2015-03-04 09:00:00', hours => 7.35, issue_id => $sickLeave},
-            #Wednesday, getting better, working from home a bit
-            {spent_on => '2017-03-05', created_on => '2017-03-05 09:15:00', hours => 2.35, comments => '{{REMOTE}}. This and that.'},
-            {spent_on => '2017-03-05', created_on => '2017-03-05 09:30:00', hours => 5.00, issue_id => $sickLeave},
-            #Thursday, normal day at office
-            {spent_on => '2017-03-06', created_on => '2017-03-06 11:30:00', hours => 3},
-            {spent_on => '2017-03-06', created_on => '2017-03-06 15:45:00', hours => 4},
-            {spent_on => '2017-03-06', created_on => '2017-03-06 17:45:00', hours => 2},
-            #Friday yippee!
-            {spent_on => '2017-03-07', created_on => '2017-03-07 17:45:00', hours => 7.35},
+            #A regular wednesday, got sick midway
+            {spent_on => '2017-03-01', created_on => '2017-03-01 10:30:00', hours => 2.5},
+            {spent_on => '2017-03-01', created_on => '2017-03-01 11:30:00', hours => 0.75, activity => $learning},
+            {spent_on => '2017-03-01', created_on => '2017-03-01 15:30:00', hours => 4.1,  issue_id => $sickLeave},
+            #Thursday, still sick
+            {spent_on => '2017-03-02', created_on => '2015-03-02 09:00:00', hours => 7.35, issue_id => $sickLeave},
+            #Friday, getting better, working from home a bit
+            {spent_on => '2017-03-03', created_on => '2017-03-03 09:15:00', hours => 2.35, comments => '{{REMOTE}}. This and that.'},
+            {spent_on => '2017-03-03', created_on => '2017-03-03 09:30:00', hours => 5.00, issue_id => $sickLeave},
             #Need to work on saturday :( but I get benefits :)
-            {spent_on => '2017-03-08', created_on => '2017-03-08 16:45:00', hours => 7.35, comments => '{{BENEFITS}}. Doing some super important stuff.'},
+            {spent_on => '2017-03-04', created_on => '2017-03-04 16:45:00', hours => 7.35, comments => '{{BENEFITS}}. Doing some super important stuff.'},
             #Answering some email on sunday. Shouldn't get benefits since no overwork order.
-            {spent_on => '2017-03-09', created_on => '2017-03-09 10:00:00', hours => 1},
-            #Not working on monday for some reason. No worklog entries. This empty gap should be filled with a blank day when exporting reports.
+            {spent_on => '2017-03-05', created_on => '2017-03-05 10:00:00', hours => 1},
+            #Not working on monday for some reason. No worklog entries. This empty gap should be filled with a blank day when exporting reports. A lot of negative overwork.
             #
             #Tuesday is normal.
-            {spent_on => '2017-03-11', created_on => '2017-03-11 16:30:00', hours => 7.5,  activity => $learning},
+            {spent_on => '2017-03-07', created_on => '2017-03-07 16:30:00', hours => 7.5,  activity => $learning},
             #Wednesday is normal.
-            {spent_on => '2017-03-12', created_on => '2017-03-12 16:45:00', hours => 7.5},
+            {spent_on => '2017-03-08', created_on => '2017-03-08 16:45:00', hours => 7.5},
             #Thursday is remote working day
-            {spent_on => '2017-03-13', created_on => '2017-03-13 19:00:00', hours => 8,    comments => '{{REMOTE}}. This and that again.'},
+            {spent_on => '2017-03-09', created_on => '2017-03-09 19:00:00', hours => 8,    comments => '{{REMOTE}}. This and that again.'},
             #Friday is a vacation!
-            {spent_on => '2017-03-14', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
+            {spent_on => '2017-03-10', created_on => '2017-02-10 12:00:00', hours => 7.35, issue_id => $vacation},
             #Saturday
             #
             #Sunday
             #
             #Monday is a vacation!
-            {spent_on => '2017-03-17', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
+            {spent_on => '2017-03-13', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
             #Tuesday is a vacation!
-            {spent_on => '2017-03-18', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
-            #Wednesday is a paid leave! Hooray for religion!
-            {spent_on => '2017-03-19', created_on => '2017-02-20 12:00:00', hours => 7.35, issue_id => $paidLeave},
+            {spent_on => '2017-03-14', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
+            #Wednesday is a paid leave! Hooray for religion! Monthly vacation allowance should accumulate today
+            {spent_on => '2017-03-15', created_on => '2017-02-20 12:00:00', hours => 7.35, issue_id => $paidLeave},
             #Thursday is a vacation!
-            {spent_on => '2017-03-20', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
+            {spent_on => '2017-03-16', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
             #Friday is a vacation!
-            {spent_on => '2017-03-21', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
+            {spent_on => '2017-03-17', created_on => '2017-02-01 12:00:00', hours => 7.35, issue_id => $vacation},
             #Saturday
             #
             #Sunday
             #
             #Monday. Special emergency today, had to work late.
-            {spent_on => '2017-03-24', created_on => '2017-03-24 13:45:00', hours => 6.75},
-            {spent_on => '2017-03-24', created_on => '2017-03-24 17:55:00', hours => 4.00, comments => '{{BENEFITS}}. Something broke and had to fix it.'},
+            {spent_on => '2017-03-20', created_on => '2017-03-20 13:45:00', hours => 6.75},
+            {spent_on => '2017-03-20', created_on => '2017-03-20 17:55:00', hours => 4.00, comments => '{{BENEFITS}}. Something broke and had to fix it.'},
             #Tuesday is normal.
-            {spent_on => '2017-03-25', created_on => '2017-03-25 16:30:00', hours => 7.5},
+            {spent_on => '2017-03-21', created_on => '2017-03-21 16:30:00', hours => 7.5},
             #Wednesday is normal.
-            {spent_on => '2017-03-26', created_on => '2017-03-26 16:45:00', hours => 7.5},
+            {spent_on => '2017-03-22', created_on => '2017-03-22 16:45:00', hours => 7.5},
             #Thursday is normal.
-            {spent_on => '2017-03-27', created_on => '2017-03-27 16:30:00', hours => 7.5},
+            {spent_on => '2017-03-23', created_on => '2017-03-23 16:30:00', hours => 7.5},
             #Friday is a remote day.
-            {spent_on => '2017-03-28', created_on => '2017-03-28 16:00:00', hours => 7.25, comments => '{{REMOTE}}'},
+            {spent_on => '2017-03-24', created_on => '2017-03-24 16:00:00', hours => 7.25, comments => '{{REMOTE}}'},
             #Need to work on saturday :( but I get benefits :)
-            {spent_on => '2017-03-29', created_on => '2017-03-29 15:00:00', hours => 7.00, comments => '{{BENEFITS}}'},
-            {spent_on => '2017-03-29', created_on => '2017-03-29 19:05:00', hours => 4.00},
-            {spent_on => '2017-03-29', created_on => '2017-03-29 21:10:00', hours => 2.00},
+            {spent_on => '2017-03-25', created_on => '2017-03-25 15:00:00', hours => 7.00, comments => '{{BENEFITS}}'},
+            {spent_on => '2017-03-25', created_on => '2017-03-25 19:05:00', hours => 4.00},
+            {spent_on => '2017-03-25', created_on => '2017-03-25 21:10:00', hours => 2.00},
             #Sunday
             #
+            #Monday
+            #
+            #Tuesday
+            #
+            #Wednesday
+            #
+            #Thursday
+            #
+            #Friday
+            # #Didn't show up in 5 days !! yikes, this will get you fired.
             #### Change of month to May ####
+            #Saturday
+            #
+            #Sunday
+            #
             #Monday is normal.
-            {spent_on => '2017-04-01', created_on => '2017-04-01 16:30:00', hours => 7.5},
-            #Tuesday is normal.
-            {spent_on => '2017-04-02', created_on => '2017-04-02 16:45:00', hours => 7.5},
-            #Wednesday is normal.
             {spent_on => '2017-04-03', created_on => '2017-04-03 16:30:00', hours => 7.5},
+            #Tuesday is normal.
+            {spent_on => '2017-04-04', created_on => '2017-04-04 16:45:00', hours => 7.5},
+            #Wednesday is normal.
+            {spent_on => '2017-04-05', created_on => '2017-04-05 16:30:00', hours => 7.5},
         );
         t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => $testDude});
         return \@wls;
     });
 
-    my $worklogger = RMS::Worklogs->new({user => 1, year => 2017});
-    my $workedDays = $worklogger->asDays();
-    my @k = sort keys %$workedDays;
-    is(scalar(@k), 30, "30 days worked");
-    my $days = RMS::Worklogs::Exporter->fillMissingDays($workedDays);
+    my $worklogger = RMS::Worklogs->new({user => 'testDude', year => 2017});
+    my $workedDailies = $worklogger->_flattenDays($worklogger->worklogs);
+    my @k = sort keys %$workedDailies;
+    is(scalar(@k), 28, "28 days worked");
+    my $days = $worklogger->asDays();
     @k = sort keys %$days;
     is(scalar(@k), 97, "97 days in total, including non-worked days");
 
-    is(RMS::Dates::formatDurationPHMS($days->{'2016-12-28'}->overworkAccumulation() ), '-00:45:00', '12-28 overwork accumulated from previous year');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-01-03'}->overworkAccumulation() ), '00:00:00', '01-03 overwork accumulated');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-26'}->overworkAccumulation() ), '03:24:00', '03-26 overwork accumulated');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-27'}->overworkAccumulation() ), '06:48:00', '03-27 overwork accumulated');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-28'}->overworkAccumulation() ), '05:12:00', '03-28 overwork partially reimbursed');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->overworkAccumulation() ), '05:12:00', '04-01 empty day, overwork unchanged');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-02'}->overworkAccumulation() ), '05:12:00', '04-02 empty day, overwork unchanged');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->overworkAccumulation() ), '05:12:00', '04-03 overwork remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-04'}->overworkAccumulation() ), '05:12:00', '04-04 overwork remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-05'}->overworkAccumulation() ), '05:12:00', '04-05 overwork remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-06'}->overworkAccumulation() ), '06:51:00', '04-06 overwork accumulated');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2016-12-30'}->overworkAccumulation() ), '-00:45:00',  '12-30 overwork accumulated from previous year');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-01-01'}->overworkAccumulation() ), '-00:45:00',  '01-01 overwork unchanged due to weekend');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-01-02'}->overworkAccumulation() ), '-08:00:00',  '01-02 overwork lost due to not working');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-01-03'}->overworkAccumulation() ), '-07:15:00',  '01-03 overwork accumulated');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-01-31'}->overworkAccumulation() ), '-152:15:00', '01-31 overwork quota sunk a lot due to not working the whole month :(');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-02-25'}->overworkAccumulation() ), '-284:27:00', '02-25 overwork quota sunk a lot due to not working the whole month :(');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-02-26'}->overworkAccumulation() ), '-280:57:00', '02-26 overwork accumulated');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-02-27'}->overworkAccumulation() ), '-277:33:00', '02-27 overwork accumulated');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-02-28'}->overworkAccumulation() ), '+00:00:00',  '02-28 overwork negatively reimbursed');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-01'}->overworkAccumulation() ), '+00:00:00',  '03-01 overwork unchanged');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-02'}->overworkAccumulation() ), '+00:00:00',  '03-02 overwork unchanged');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-03'}->overworkAccumulation() ), '+00:00:00',  '03-03 overwork unchanged');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-04'}->overworkAccumulation() ), '+07:21:00',  '03-04 overwork from a full saturday');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-05'}->overworkAccumulation() ), '+08:21:00',  '03-05 overwork from reading email on sunday');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-06'}->overworkAccumulation() ), '+01:00:00',  '03-06 overwork lost due to not working');
+    is(RMS::Dates::formatDurationPHMS( $days->{'2017-03-07'}->overworkAccumulation() ), '+01:09:00',  '03-07 overwork accumulated');
 
     ##TODO:: user testDude has 12 vacations from a prior work contract
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-26'}->vacationAccumulation() ), '86:24:00', '03-26 prior contract vacations retained');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-27'}->vacationAccumulation() ), '06:48:00', '03-27 vacation accumulated');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-28'}->vacationAccumulation() ), '05:12:00', '03-28 vacation partially reimbursed');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->vacationAccumulation() ), '05:12:00', '04-01 empty day, vacation unchanged');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-02'}->vacationAccumulation() ), '05:12:00', '04-02 empty day, vacation unchanged');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->vacationAccumulation() ), '05:12:00', '04-03 vacation remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-04'}->vacationAccumulation() ), '05:12:00', '04-04 vacation remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-05'}->vacationAccumulation() ), '05:12:00', '04-05 vacation remains the same');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-06'}->vacationAccumulation() ), '06:51:00', '04-06 vacation accumulated');
+    is(RMS::Dates::formatDurationHMS( $days->{'2016-12-30'}->vacationAccumulation() ), '87:00:00',  '12-30 prior contract vacations retained');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-01-14'}->vacationAccumulation() ), '87:00:00',  '01-14 day before vacations accumulate');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-01-15'}->vacationAccumulation() ), '101:30:00', '01-15 vacations accumulate');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-01-16'}->vacationAccumulation() ), '101:30:00', '01-16 vacations accumulated');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-14'}->vacationAccumulation() ), '101:30:00', '02-14 day before vacations accumulate');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-15'}->vacationAccumulation() ), '116:12:00', '02-15 vacations accumulate');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-02-16'}->vacationAccumulation() ), '116:12:00', '02-16 vacations accumulated');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-10'}->vacationAccumulation() ), '108:51:00', '03-10 vacation used');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-13'}->vacationAccumulation() ), '101:30:00', '03-13 vacation used');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-14'}->vacationAccumulation() ), '94:09:00',  '03-14 vacation used');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-15'}->vacationAccumulation() ), '108:51:00', '03-15 vacations accumulate');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-16'}->vacationAccumulation() ), '101:30:00', '03-16 vacation used');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-17'}->vacationAccumulation() ), '94:09:00',  '03-17 vacation used');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-04-03'}->vacationAccumulation() ), '94:09:00',  '04-03 vacations remain unaltered');
 
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->duration() ),             '07:21:00', '04-03 learning a bit, but workday duration is as expected');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->learning() ),             '00:45:00', '04-03 learning a bit');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->duration() ),             '07:21:00', '03-01 learning a bit, but workday duration is as expected');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->learning() ),             '00:45:00', '03-01 learning a bit');
 
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->duration() ),             '07:21:00', '04-03 sick leave partially, but workday duration is as expected');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->sickLeave() ),            '04:06:00', '04-03 sick leave partially');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-04'}->duration() ),             '07:21:00', '04-04 sick leave completely and workday duration is as expected');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-04'}->sickLeave() ),            '07:21:00', '04-04 sick leave completely');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-05'}->duration() ),             '07:21:00', '04-05 sick leave partially, but workday duration is as expected');
-    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-05'}->sickLeave() ),            '05:00:00', '04-05 sick leave partially');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->duration() ),             '07:21:00', '03-01 sick leave partially, but workday duration is as expected');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-01'}->sickLeave() ),            '04:06:00', '03-01 sick leave partially');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-02'}->duration() ),             '07:21:00', '03-02 sick leave completely and workday duration is as expected');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-02'}->sickLeave() ),            '07:21:00', '03-02 sick leave completely');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->duration() ),             '07:21:00', '03-03 sick leave partially, but workday duration is as expected');
+    is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->sickLeave() ),            '05:00:00', '03-03 sick leave partially');
 
     $days = $worklogger->asOds('/tmp/workTime');
     ok($days, '.ods generated');

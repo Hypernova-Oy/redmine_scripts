@@ -14,6 +14,12 @@ use RMS::Dates;
 use RMS::Worklogs;
 
 use t::lib::Helps;
+use t::lib::Mocks;
+
+
+my $moduleRMSUsers = Test::MockModule->new('RMS::Users');
+$moduleRMSUsers->mock('getUser', \&t::lib::Mocks::RMS_Users_getUser);
+
 
 my $tmpWorklogFile = '/tmp/workTime';
 
@@ -34,6 +40,35 @@ sub fillMissingYMDs {
     foreach my $ymd (qw(2016-05-01 2016-05-02 2016-05-03 2016-05-04 2016-05-05 2016-05-06 2016-05-07 2016-05-08 2016-05-09 2016-05-10 2016-05-11)) {
         is($ymds->[$i++], $ymd, $ymd);
     }
+}
+
+subtest "fillMissingTimeEntries", \&fillMissingTimeEntries;
+sub fillMissingTimeEntries {
+    my $worklogs = [
+        {spent_on => '2015-12-31', created_on => '2015-12-31 08:00:00', hours => 7.25, comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-01-02', created_on => '2016-01-02 08:00:00', hours => 7.25, comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-01-03', created_on => '2016-01-03 08:00:00', hours => 7.25, comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-02-04', created_on => '2016-02-04 08:00:00', hours => 7.25, comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-02-06', created_on => '2016-02-06 08:30:00', hours => 0.5,  comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-02-06', created_on => '2016-02-06 12:00:00', hours => 3.5,  comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+        {spent_on => '2016-02-06', created_on => '2016-02-06 16:00:00', hours => 3.5,  comments => '', issue_id => 101, user_id => 1, activity => 'Learning'},
+    ];
+    $worklogs = RMS::Worklogs::fillMissingTimeEntries($worklogs);
+
+    testTimeEntry('2015-12-31', $worklogs->[0],  '2015-12-31', '2015-12-31 08:00:00', 7.25, '', 101, 1, 'Learning');
+    testTimeEntry('2016-01-01', $worklogs->[1],  '2016-01-01', '2016-01-01 00:00:00', 0,    '', 0,   1, '');
+    testTimeEntry('2016-01-02', $worklogs->[2],  '2016-01-02', '2016-01-02 08:00:00', 7.25, '', 101, 1, 'Learning');
+    testTimeEntry('2016-01-03', $worklogs->[3],  '2016-01-03', '2016-01-03 08:00:00', 7.25, '', 101, 1, 'Learning');
+    testTimeEntry('2016-01-04', $worklogs->[4],  '2016-01-04', '2016-01-04 00:00:00', 0,    '', 0  , 1, '');
+    testTimeEntry('2016-01-05', $worklogs->[5],  '2016-01-05', '2016-01-05 00:00:00', 0,    '', 0  , 1, '');
+    #...
+    testTimeEntry('2016-02-03', $worklogs->[34], '2016-02-03', '2016-02-03 00:00:00', 0,    '', 0  , 1, '');
+    testTimeEntry('2016-02-04', $worklogs->[35], '2016-02-04', '2016-02-04 08:00:00', 7.25, '', 101, 1, 'Learning');
+    testTimeEntry('2016-02-05', $worklogs->[36], '2016-02-05', '2016-02-05 00:00:00', 0,    '', 0,   1, '');
+    testTimeEntry('2016-02-06', $worklogs->[37], '2016-02-06', '2016-02-06 08:30:00', 0.5,  '', 101, 1, 'Learning');
+    testTimeEntry('2016-02-06', $worklogs->[38], '2016-02-06', '2016-02-06 12:00:00', 3.5,  '', 101, 1, 'Learning');
+    testTimeEntry('2016-02-06', $worklogs->[39], '2016-02-06', '2016-02-06 16:00:00', 3.5,  '', 101, 1, 'Learning');
+    testTimeEntry('2016-02-07', $worklogs->[40], undef,        undef,                 undef,undef,undef,undef,undef);
 }
 
 subtest "hoursToDuration", \&hoursToDuration;
@@ -200,11 +235,11 @@ sub simpleDaily {
             {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25},
             {spent_on => '2016-05-20', created_on => '2016-05-20 16:29:21', hours => 3.5},
         );
-        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 666});
         return \@wls;
     });
 
-    my $days = RMS::Worklogs->new({user => 1})->asDays();
+    my $days = RMS::Worklogs->new({user => 'testDude'})->asDays();
     my @k = sort keys %$days;
     is(scalar(keys(%$days)), 1, "1 days");
 
@@ -217,84 +252,85 @@ sub advancedDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         my @wls = (
-            {spent_on => '2015-06-11', created_on => '2015-06-11 10:34:29', hours => 0.5,}, #This day had a problem with exponentially small 'hours'
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:26:06', hours => 0.75,},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 11:28:11', hours => 0.25,},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:10:37', hours => 3,},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:11:59', hours => 2,},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:13:46', hours => 2,},
-            {spent_on => '2015-06-11', created_on => '2015-06-11 18:14:16', hours => 0.0000001,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 10:34:29', hours => 0.5,}, #This day had a problem with exponentially small 'hours'
+            {spent_on => '2015-07-12', created_on => '2015-07-12 11:26:06', hours => 0.75,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 11:28:11', hours => 0.25,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 18:10:37', hours => 3,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 18:11:59', hours => 2,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 18:13:46', hours => 2,},
+            {spent_on => '2015-07-12', created_on => '2015-07-12 18:14:16', hours => 0.0000001,},
 
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:54:38', hours => 0.5,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 08:55:45', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 09:50:08', hours => 1,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:38:01', hours => 1,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:41:22', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 13:43:10', hours => 2.5,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:25:20', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 14:36:43', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:20', hours => 1,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 15:48:51', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:04:17', hours => 0.25,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:05:28', hours => 2,},
-            {spent_on => '2015-11-03', created_on => '2015-11-03 18:48:14', hours => 0.75,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 08:54:38', hours => 0.5,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 08:55:45', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 09:50:08', hours => 1,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 13:38:01', hours => 1,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 13:41:22', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 13:43:10', hours => 2.5,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 14:25:20', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 14:36:43', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 15:48:20', hours => 1,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 15:48:51', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 18:04:17', hours => 0.25,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 18:05:28', hours => 2,},
+            {spent_on => '2015-07-13', created_on => '2015-07-13 18:48:14', hours => 0.75,},
 
-            {spent_on => '2015-11-04', created_on => '2015-11-04 11:59:36', hours => 0.375,}, #This day had a strange bug in 'breaks'-calculus
-            {spent_on => '2015-11-04', created_on => '2015-11-04 12:00:00', hours => 0.37,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 16:59:43', hours => 0.25,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:12', hours => 4,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:03:20', hours => 1,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 17:24:45', hours => 0.25,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:56:10', hours => 1,},
-            {spent_on => '2015-11-04', created_on => '2015-11-04 18:57:50', hours => 0.75,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 11:59:36', hours => 0.375,}, #This day had a strange bug in 'breaks'-calculus
+            {spent_on => '2015-07-14', created_on => '2015-07-14 12:00:00', hours => 0.37,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 16:59:43', hours => 0.25,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 17:03:12', hours => 4,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 17:03:20', hours => 1,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 17:24:45', hours => 0.25,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 18:56:10', hours => 1,},
+            {spent_on => '2015-07-14', created_on => '2015-07-14 18:57:50', hours => 0.75,},
 
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:34:42', hours => 2,},    #Bugfix where these days yield strange hours
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:07', hours => 3,},
-            {spent_on => '2016-04-26', created_on => '2016-04-26 23:35:25', hours => 2.25,}, #end time - start time = -15:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 00:20:48', hours => 0.75,}, #end time - start time = 00:00
-            {spent_on => '2016-04-27', created_on => '2016-04-27 15:29:40', hours => 4,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:02:33', hours => 0.5,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 16:34:53', hours => 0.6,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:25:28', hours => 1.75,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 18:26:02', hours => 0.2,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:30:00', hours => 0.95,},
-            {spent_on => '2016-04-27', created_on => '2016-04-27 19:36:21', hours => 0.25,},
+            {spent_on => '2015-07-15', created_on => '2015-07-15 23:34:42', hours => 2,},    #Bugfix where these days yield strange hours
+            {spent_on => '2015-07-15', created_on => '2015-07-15 23:35:07', hours => 3,},
+            {spent_on => '2015-07-15', created_on => '2015-07-15 23:35:25', hours => 2.25,}, #end time - start time = -15:00
+            {spent_on => '2015-07-16', created_on => '2015-07-16 00:20:48', hours => 0.75,}, #end time - start time = 00:00
+            {spent_on => '2015-07-16', created_on => '2015-07-16 15:29:40', hours => 4,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 16:02:33', hours => 0.5,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 16:34:53', hours => 0.6,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 18:25:28', hours => 1.75,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 18:26:02', hours => 0.2,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 19:30:00', hours => 0.95,},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 19:36:21', hours => 0.25,},
 
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:05:17', hours => 10.5,},  #Dangerous unsyncronized worklog entries
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:08:29', hours => 0.5,},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:09:06', hours => 0.25,},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:51:26', hours => 0.5,},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 11:52:18', hours => 0.25,},
-            {spent_on => '2016-05-20', created_on => '2016-05-20 15:29:21', hours => 3.5,},
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:05:17', hours => 10.5,},  #Dangerous unsyncronized worklog entries
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:08:29', hours => 0.5,},
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:09:06', hours => 0.25,},
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:51:26', hours => 0.5,},
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:52:18', hours => 0.25,},
+            {spent_on => '2015-07-17', created_on => '2015-07-17 15:29:21', hours => 3.5,},
 
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:08:29', hours => 0.5,},  #Dangerous unsyncronized worklog entries fixed days later
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:09:06', hours => 0.25,},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:51:26', hours => 0.5,},
-            {spent_on => '2016-05-21', created_on => '2016-05-21 11:52:18', hours => 0.25,},
-            {spent_on => '2016-05-21', created_on => '2016-05-22 15:29:21', hours => 3.5,},
-            {spent_on => '2016-05-21', created_on => '2016-05-23 11:00:00', hours => 10.5,},
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:08:29', hours => 0.5,},  #Dangerous unsyncronized worklog entries fixed days later
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:09:06', hours => 0.25,}, #2015-07-18 is a saturday and all work done should be treated as overwork.
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:51:26', hours => 0.5,},
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:52:18', hours => 0.25,},
+            {spent_on => '2015-07-18', created_on => '2015-07-22 15:29:21', hours => 3.5,},
+            {spent_on => '2015-07-18', created_on => '2015-07-23 11:00:00', hours => 10.5,},
 
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:49:45', hours => 5,}, #Bug: Negative break duration?
-            {spent_on => '2016-09-20', created_on => '2016-09-20 17:59:55', hours => 0.666,},
-            {spent_on => '2016-09-20', created_on => '2016-09-20 18:06:25', hours => 0.25,},
+            {spent_on => '2015-07-20', created_on => '2015-07-20 17:49:45', hours => 5,}, #Bug: Negative break duration?
+            {spent_on => '2015-07-20', created_on => '2015-07-20 17:59:55', hours => 0.666,},
+            {spent_on => '2015-07-20', created_on => '2015-07-20 18:06:25', hours => 0.25,},
         );
-        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 666});
         return \@wls;
     });
 
-    my $days = RMS::Worklogs->new({user => 1})->asDays();
+    my $days = RMS::Worklogs->new({user => 'testDude'})->asDays();
     my @k = sort keys %$days;
-    is(scalar(@k), 8, "8 days");
+    is(scalar(@k), 9, "9 days");
 
     #      ($yms,  $day,           $startIso,             $endIso,       $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
-    testDay($k[0], $days->{$k[0]}, '2015-06-11T10:04:29', '2015-06-11T18:34:30', '+08:30:01', '+00:00:00', '+01:15:01', '+01:15:01', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
-    testDay($k[1], $days->{$k[1]}, '2015-11-03T08:09:38', '2015-11-03T18:48:14', '+10:15:00', '+00:23:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[2], $days->{$k[2]}, '2015-11-04T11:14:54', '2015-11-04T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!');
-    testDay($k[3], $days->{$k[3]}, '2016-04-26T16:19:42', '2016-04-26T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[4], $days->{$k[4]}, '2016-04-27T00:00:00', '2016-04-27T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
-    testDay($k[5], $days->{$k[5]}, '2016-05-20T00:00:00', '2016-05-20T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!');
-    testDay($k[6], $days->{$k[6]}, '2016-05-21T08:29:59', '2016-05-21T23:59:59', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!');
-    testDay($k[7], $days->{$k[7]}, '2016-09-20T12:49:45', '2016-09-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!');
+    testDay($k[0], $days->{$k[0]}, '2015-07-12T10:04:29', '2015-07-12T18:34:30', '+08:30:01', '+00:00:00', '+08:30:01', '+02:00:00', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
+    testDay($k[1], $days->{$k[1]}, '2015-07-13T08:09:38', '2015-07-13T18:48:14', '+10:15:00', '+00:23:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[2], $days->{$k[2]}, '2015-07-14T11:14:54', '2015-07-14T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!');
+    testDay($k[3], $days->{$k[3]}, '2015-07-15T16:19:42', '2015-07-15T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[4], $days->{$k[4]}, '2015-07-16T00:00:00', '2015-07-16T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[5], $days->{$k[5]}, '2015-07-17T00:00:00', '2015-07-17T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!');
+    testDay($k[6], $days->{$k[6]}, '2015-07-18T08:29:59', '2015-07-18T23:59:59', '+15:30:00', '+00:00:00', '+15:30:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!');
+    testDay($k[7], $days->{$k[7]}, '2015-07-19T00:00:00', '2015-07-19T00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   undef);
+    testDay($k[8], $days->{$k[8]}, '2015-07-20T12:49:45', '2015-07-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!');
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;
@@ -310,11 +346,11 @@ sub simpleCsvExport {
             {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2},
             {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2},
         );
-        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 666});
         return \@wls;
     });
 
-    t::lib::Helps::runPerlScript('scripts/getWorkTime.pl', ['--user', 1, '--file', $tmpWorklogFile, '--type', 'csv', '--year', 2016]);
+    t::lib::Helps::runPerlScript('scripts/getWorkTime.pl', ['--user', 'testDude', '--file', $tmpWorklogFile, '--type', 'csv', '--year', 2016]);
 
     $csv = Text::CSV->new({binary => 1}) or die "Cannot use CSV: ".Text::CSV->error_diag ();
     open($fh, "<:encoding(utf8)", $tmpWorklogFile.'.csv') or die "$tmpWorklogFile.csv: $!";
@@ -328,14 +364,14 @@ sub simpleCsvExport {
     is($row->[5], '-05:15:00',           "1st overwork");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-21',          '2nd day filled');
-    is($row->[1], '',                    "2nd start empty");
-    is($row->[2], '',                    "2nd end empty");
-    is($row->[3], '',                    "2nd breaks empty");
-    is($row->[4], '',                    "2nd duration empty");
-    is($row->[5], '',                    "2nd overwork empty");
+    is($row->[1], '00:00:00',            "2nd start empty");
+    is($row->[2], '00:00:00',            "2nd end empty");
+    is($row->[3], '+00:00:00',           "2nd breaks empty");
+    is($row->[4], '+00:00:00',           "2nd duration empty");
+    is($row->[5], '+00:00:00',           "2nd overwork empty");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-22',          '3rd day filled');
-    is($row->[1], '',                    "3rd start empty");
+    is($row->[1], '00:00:00',            "3rd start empty");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-23',          '4th day');
     is($row->[1], '10:00:00',            "4th start");
@@ -344,7 +380,7 @@ sub simpleCsvExport {
     is($row->[1], '10:00:00',            "5th start");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-25',          '6th day filled');
-    is($row->[1], '',                    "6th start empty");
+    is($row->[1], '00:00:00',            "6th start empty");
     $row = $csv->getline( $fh );
     is($row->[0], '2016-05-26',          '7th day');
     is($row->[1], '10:00:00',            "7th start");
@@ -365,12 +401,12 @@ sub simpleOdsExport {
             {spent_on => '2016-05-24', created_on => '2016-05-24 12:00:00', hours => 2, issue_id => 9999, activity => ''},
             {spent_on => '2016-05-26', created_on => '2016-05-26 12:00:00', hours => 2, issue_id => 9999, activity => ''},
         );
-        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 1});
+        t::lib::Helps::worklogDefault(\@wls, {issue_id => 9999, activity => '', user_id => 666});
         return \@wls;
     });
     my ($days, $csv, $fh, $row);
 
-    $days = RMS::Worklogs->new({user => 1, year => 2016})->asOds($tmpWorklogFile);
+    $days = RMS::Worklogs->new({user => 'testDude', year => 2016})->asOds($tmpWorklogFile);
     ok($days);
     unlink("$tmpWorklogFile.ods");
 }
@@ -391,4 +427,15 @@ sub testDay {
     is($day->benefits, $benefits, "$yms benefits");
     is($day->remote,   $remote,   "$yms remote");
     is($day->comments, $comments, "$yms comments");
+}
+
+sub testTimeEntry {
+    my ($ymd, $timeEntry, $spent_on, $created_on, $hours, $comments, $issue_id, $user_id, $activity) = @_;
+    is(($timeEntry ? $timeEntry->{spent_on}   : undef), $spent_on,   "$ymd spent_on");
+    is(($timeEntry ? $timeEntry->{created_on} : undef), $created_on, "$ymd created_on");
+    is(($timeEntry ? $timeEntry->{hours}      : undef), $hours,      "$ymd hours");
+    is(($timeEntry ? $timeEntry->{comments}   : undef), $comments,   "$ymd comments");
+    is(($timeEntry ? $timeEntry->{issue_id}   : undef), $issue_id,   "$ymd issue_id");
+    is(($timeEntry ? $timeEntry->{user_id}    : undef), $user_id,    "$ymd user_id");
+    is(($timeEntry ? $timeEntry->{activity}   : undef), $activity,   "$ymd activity");
 }

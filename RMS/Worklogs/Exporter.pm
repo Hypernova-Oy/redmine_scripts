@@ -54,7 +54,7 @@ sub new {
 sub asOds {
   my ($self) = @_;
   my $file = $self->{file}.'.ods';
-  my $days = $self->fillMissingDays( $self->{worklogDays} );
+  my $days = $self->{worklogDays};
   my @dates = sort keys %{$days};
 
   my $rowsPerMonth = 40;
@@ -263,43 +263,6 @@ sub fillMissingYMDs {
         } while ($b && $a < $b);
     }
     return \@ymds;
-}
-
-=head2 $class->fillMissingDays
-
-Just like _fillMissingYMDs, but receives a hash of RMS::Worklogs::Day-objects and fills the missing days
-with empty RMS::Worklogs::Day-objects
-
-@PARAM1 $class
-@PARAM2 HashRef of RMS::Worklogs::Day-objects, with keys as YMDs
-@RETURNS HashRef of RMS::Worklogs::Day-objects with empty days filled with empty defaults
-
-=cut
-
-sub fillMissingDays {
-    my ($class, $days) = @_;
-    die __PACKAGE__."::fillMissingDays():> \$days '".($days || 'undef')."' is not a HASHREF" unless(ref($days) eq 'HASH');
-
-    my @dates = sort keys %$days;
-    my %days;
-    for (my $i=0 ; $i<scalar(@dates) ; $i++) {
-        my $a = $dates[$i];
-        my $b = $dates[$i+1] if $dates[$i+1];
-
-        my $prevDay = $days->{$a};
-        $l->trace("Entering date filling loop with date='$a', \$prevDay=".$prevDay) if $l->is_trace();
-        do {
-            my $curDay = $days->{$a};
-            $l->trace("Fetch \$curDay=".($curDay || 'undef')) if $l->is_trace();
-            $days{$a} = $curDay ? $curDay : RMS::Worklogs::Day->newEmpty($prevDay);
-            $l->trace("Set \$curDay=".($days{$a} || 'undef')) if $l->is_trace();
-            $prevDay = $days{$a};
-            #Increment $a by one day
-            $a = DateTime::Format::MySQL->parse_datetime( $a.' 00:00:00' )->add_duration( DateTime::Duration->new(days => 1) )->ymd();
-            $l->trace("Date='$a' incremented") if $l->is_trace();
-        } while ($b && $a lt $b);
-    }
-    return \%days;
 }
 
 1;

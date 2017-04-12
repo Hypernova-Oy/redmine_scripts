@@ -25,7 +25,7 @@ have been extracted.
 my $tagExtractorRegexp = qr/\{\{(.+?)\}\}/;
 my $startExtractorRegexp = qr/^(?:START|BEGIN|ALKU) ?(\d\d)\D?(\d\d)/;
 my $endExtractorRegexp = qr/^(?:END|CLOSE|LOPPU) ?(\d\d)\D?(\d\d)/;
-my $overworkReimbursedExtractorRegexp = qr/^(?:REIMBURSED|PAID|MAKSETTU) ?(\d{1,3})\D?(\d\d) ?(.+)/;
+my $overworkReimbursedExtractorRegexp = qr/^(?:REIMBURSED|PAID|MAKSETTU) ?([-+]?)(\d{1,3})\D?(\d\d) ?(.+)/;
 sub parseTags {
     my ($comments) = @_;
 
@@ -53,8 +53,10 @@ sub parseTags {
             } elsif ($c =~ /$endExtractorRegexp/) {
                 $end      = DateTime::Duration->new(hours => $1, minutes => $2);
             } elsif ($c =~ /$overworkReimbursedExtractorRegexp/) {
-                $overworkReimbursed = DateTime::Duration->new(hours => $1, minutes => $2);
-                $overworkReimbursedBy = $3;
+                my $sign = $1; #positive or negative
+                $overworkReimbursed = DateTime::Duration->new(hours => $2, minutes => $3);
+                $overworkReimbursed = $overworkReimbursed->inverse() if $sign eq '-';
+                $overworkReimbursedBy = $4;
             } else {
                 $comments = "Strange tag {{$c}}? $comments";
             }
@@ -66,7 +68,7 @@ sub parseTags {
                       ($start ?    "\$start=".RMS::Dates::formatDurationHMS($start).', ' : '').
                       ($end ?      "\$end=".RMS::Dates::formatDurationHMS($end).', ' : '').
                       ($comments ? "\$comments=$comments" : '').
-                      ($overworkReimbursed ? "\$overworkReimbursed=".RMS::Dates::formatDurationHMS($overworkReimbursed).' '.$overworkReimbursedBy.', ' : '').
+                      ($overworkReimbursed ? "\$overworkReimbursed=".RMS::Dates::formatDurationPHMS($overworkReimbursed).' '.$overworkReimbursedBy.', ' : '').
             '');
         }
         return ($benefits, $remote, $start, $end, $overworkReimbursed, $overworkReimbursedBy, $comments);

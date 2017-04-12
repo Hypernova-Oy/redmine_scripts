@@ -13,9 +13,6 @@ use RMS::WorkRules;
 use RMS::Logger;
 my $l = bless({}, 'RMS::Logger');
 
-#We accumulate vacations on the given day, or one of the days after it if that day is not present in the worklogs.
-#Keep track have we already accumulated vacations for the given month to avoid accumulating them many times over.
-my %vacationsAccumulatedMonths;
 
 =head2 new
 
@@ -161,26 +158,6 @@ sub newFromWorklogs {
     });
 }
 
-=head2 newEmpty
-
-Creates a "empty" day filled with incrementing variables from a previous day
-
-=cut
-
-sub newEmpty {
-    my ($class, $prevDay) = @_;
-
-    my $self = {
-        ymd => $prevDay->ymd(),
-        overworkAccumulation => $prevDay->overworkAccumulation()->clone(),
-        vacationAccumulation => $prevDay->vacationAccumulation()->clone(),
-        comments => '',
-    };
-
-    bless($self, $class);
-    return $self;
-}
-
 sub ymd {
     return shift->{ymd};
 }
@@ -201,7 +178,7 @@ sub breaks {
 }
 sub setOverwork {
     my ($self) = @_;
-    my $dayLength = RMS::WorkRules->getDayLengthDt($self->start);
+    my $dayLength = RMS::WorkRules::getDayLengthDd($self->start);
     $self->{overwork} = $self->duration->clone->subtract($dayLength);
     return $self;
 }
@@ -228,18 +205,16 @@ sub setVacationAccumulation {
     $vacationAccumulation = $vacationAccumulation->clone();
     $l->trace("\$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     #If today is the day when new vacations become available, add those vacations to the vacations quota
-    if ($self->start->day >= RMS::WorkRules::getVacationAccumulationDayOfMonth() &&
-        not($vacationsAccumulatedMonths{ $self->start->ymd() })) {
+    if ($self->start->day == RMS::WorkRules::getVacationAccumulationDayOfMonth()) {
 
         my $newVacations = RMS::WorkRules::getVacationAccumulationDuration($self->userId, $self->start);
         $vacationAccumulation->add_duration(  $newVacations  );
-        $l->trace("New vacations earned '".RMS::Dates::formatDurationHMS($newVacations)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
-        $vacationsAccumulatedMonths{ $self->start->ymd() } = 1;
+        $l->trace("New vacations earned '".RMS::Dates::formatDurationPHMS($newVacations)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     }
     #Check if vacations are used
     if ($self->vacation) {
         $vacationAccumulation->subtract_duration($self->vacation);
-        $l->trace("Vacations used '".RMS::Dates::formatDurationHMS($self->vacation)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
+        $l->trace("Vacations used '".RMS::Dates::formatDurationPHMS($self->vacation)."', \$vacationAccumulation=".RMS::Dates::formatDurationPHMS($vacationAccumulation)) if $l->is_trace();
     }
     #Store the vacation quota
     $self->{vacationAccumulation} = $vacationAccumulation;

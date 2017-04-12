@@ -81,6 +81,9 @@ our %vacationsFromPriorContracts = (
     $nameToUserId{'kivilahtio'} => 24,
     $nameToUserId{'testDude'} => 12,
 );
-our $vacationAccumulationDuration = DateTime::Duration->new(days => 2);
+our %vacationAccumulationWorkdays = (
+    $nameToUserId{'kivilahtio'} => 3,
+    $nameToUserId{'testDude'} => 2,
+);
 
 1;
