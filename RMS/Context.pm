@@ -31,7 +31,7 @@ sub dbh {
 }
 sub _dbh_connect {
     $config = getConfig() unless $config;
-    DBI->connect($dsn, 'redmine', 'red is mine', {mysql_enable_utf8 => 1});
+    DBI->connect($dsn, $config->{db_user}, $config->{db_pass}, {mysql_enable_utf8 => 1});
 }
 
 1;
