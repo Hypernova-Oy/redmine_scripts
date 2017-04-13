@@ -128,7 +128,7 @@ sub newFromWorklogs {
 
         if ($wl->{comments}) {
             my ($_benefits, $_remote, $_startDt, $_endDt, $_overworkReimbursed, $_overworkReimbursedBy, $_comments) = RMS::Worklogs::Tags::parseTags($wl->{comments});
-            push(@comments, $_comments);
+            push(@comments, $_comments || $wl->{comments});
             $l->trace("$dayYMD -> Comment prepended '".$wl->{comments}."'") if $wl->{comments} && $l->is_trace();
 
             ##{{REMOTE}} tag was found. We increment the remote working duration for this day

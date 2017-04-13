@@ -1,6 +1,11 @@
 #!/usr/bin/perl
 
 use Modern::Perl;
+use utf8;
+binmode(STDOUT, ":utf8");
+binmode(STDERR, ":utf8");
+binmode(STDIN, ":utf8");
+
 use Test::More;
 use Test::MockModule;
 
@@ -252,7 +257,7 @@ sub advancedDaily {
     my $module = Test::MockModule->new('RMS::Worklogs');
     $module->mock('getWorklogs', sub {
         my @wls = (
-            {spent_on => '2015-07-12', created_on => '2015-07-12 10:34:29', hours => 0.5,}, #This day had a problem with exponentially small 'hours'
+            {spent_on => '2015-07-12', created_on => '2015-07-12 10:34:29', hours => 0.5, comments => "\x{1F911}🤑 This day had a problem with exponentially small 'hours'"},
             {spent_on => '2015-07-12', created_on => '2015-07-12 11:26:06', hours => 0.75,},
             {spent_on => '2015-07-12', created_on => '2015-07-12 11:28:11', hours => 0.25,},
             {spent_on => '2015-07-12', created_on => '2015-07-12 18:10:37', hours => 3,},
@@ -274,7 +279,7 @@ sub advancedDaily {
             {spent_on => '2015-07-13', created_on => '2015-07-13 18:05:28', hours => 2,},
             {spent_on => '2015-07-13', created_on => '2015-07-13 18:48:14', hours => 0.75,},
 
-            {spent_on => '2015-07-14', created_on => '2015-07-14 11:59:36', hours => 0.375,}, #This day had a strange bug in 'breaks'-calculus
+            {spent_on => '2015-07-14', created_on => '2015-07-14 11:59:36', hours => 0.375, comments => "\x{1F602}😂 This day had a strange bug in 'breaks'-calculus"},
             {spent_on => '2015-07-14', created_on => '2015-07-14 12:00:00', hours => 0.37,},
             {spent_on => '2015-07-14', created_on => '2015-07-14 16:59:43', hours => 0.25,},
             {spent_on => '2015-07-14', created_on => '2015-07-14 17:03:12', hours => 4,},
@@ -283,10 +288,10 @@ sub advancedDaily {
             {spent_on => '2015-07-14', created_on => '2015-07-14 18:56:10', hours => 1,},
             {spent_on => '2015-07-14', created_on => '2015-07-14 18:57:50', hours => 0.75,},
 
-            {spent_on => '2015-07-15', created_on => '2015-07-15 23:34:42', hours => 2,},    #Bugfix where these days yield strange hours
+            {spent_on => '2015-07-15', created_on => '2015-07-15 23:34:42', hours => 2, comments => "ÅÄÖ Bugfix where these days yield strange hours"},
             {spent_on => '2015-07-15', created_on => '2015-07-15 23:35:07', hours => 3,},
-            {spent_on => '2015-07-15', created_on => '2015-07-15 23:35:25', hours => 2.25,}, #end time - start time = -15:00
-            {spent_on => '2015-07-16', created_on => '2015-07-16 00:20:48', hours => 0.75,}, #end time - start time = 00:00
+            {spent_on => '2015-07-15', created_on => '2015-07-15 23:35:25', hours => 2.25, comments => "end time - start time = -15:00"},
+            {spent_on => '2015-07-16', created_on => '2015-07-16 00:20:48', hours => 0.75, comments => "end time - start time = 00:00"},
             {spent_on => '2015-07-16', created_on => '2015-07-16 15:29:40', hours => 4,},
             {spent_on => '2015-07-16', created_on => '2015-07-16 16:02:33', hours => 0.5,},
             {spent_on => '2015-07-16', created_on => '2015-07-16 16:34:53', hours => 0.6,},
@@ -295,21 +300,21 @@ sub advancedDaily {
             {spent_on => '2015-07-16', created_on => '2015-07-16 19:30:00', hours => 0.95,},
             {spent_on => '2015-07-16', created_on => '2015-07-16 19:36:21', hours => 0.25,},
 
-            {spent_on => '2015-07-17', created_on => '2015-07-17 11:05:17', hours => 10.5,},  #Dangerous unsyncronized worklog entries
+            {spent_on => '2015-07-17', created_on => '2015-07-17 11:05:17', hours => 10.5, comments => "Dangerous unsyncronized worklog entries"},
             {spent_on => '2015-07-17', created_on => '2015-07-17 11:08:29', hours => 0.5,},
             {spent_on => '2015-07-17', created_on => '2015-07-17 11:09:06', hours => 0.25,},
             {spent_on => '2015-07-17', created_on => '2015-07-17 11:51:26', hours => 0.5,},
             {spent_on => '2015-07-17', created_on => '2015-07-17 11:52:18', hours => 0.25,},
             {spent_on => '2015-07-17', created_on => '2015-07-17 15:29:21', hours => 3.5,},
 
-            {spent_on => '2015-07-18', created_on => '2015-07-18 11:08:29', hours => 0.5,},  #Dangerous unsyncronized worklog entries fixed days later
-            {spent_on => '2015-07-18', created_on => '2015-07-18 11:09:06', hours => 0.25,}, #2015-07-18 is a saturday and all work done should be treated as overwork.
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:08:29', hours => 0.5, comments => "Dangerous unsyncronized worklog entries fixed days later"},
+            {spent_on => '2015-07-18', created_on => '2015-07-18 11:09:06', hours => 0.25, comments => "2015-07-18 is a saturday and all work done should be treated as overwork."},
             {spent_on => '2015-07-18', created_on => '2015-07-18 11:51:26', hours => 0.5,},
             {spent_on => '2015-07-18', created_on => '2015-07-18 11:52:18', hours => 0.25,},
             {spent_on => '2015-07-18', created_on => '2015-07-22 15:29:21', hours => 3.5,},
             {spent_on => '2015-07-18', created_on => '2015-07-23 11:00:00', hours => 10.5,},
 
-            {spent_on => '2015-07-20', created_on => '2015-07-20 17:49:45', hours => 5,}, #Bug: Negative break duration?
+            {spent_on => '2015-07-20', created_on => '2015-07-20 17:49:45', hours => 5, comments => "Bug: Negative break duration?"},
             {spent_on => '2015-07-20', created_on => '2015-07-20 17:59:55', hours => 0.666,},
             {spent_on => '2015-07-20', created_on => '2015-07-20 18:06:25', hours => 0.25,},
         );
@@ -322,15 +327,15 @@ sub advancedDaily {
     is(scalar(@k), 9, "9 days");
 
     #      ($yms,  $day,           $startIso,             $endIso,       $durationPHMS, $breaksPHMS, $overworkPHMS, $dailyOverwork1, $overflowPHMS, $benefits, $remote, $comments)
-    testDay($k[0], $days->{$k[0]}, '2015-07-12T10:04:29', '2015-07-12T18:34:30', '+08:30:01', '+00:00:00', '+08:30:01', '+02:00:00', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!');
+    testDay($k[0], $days->{$k[0]}, '2015-07-12T10:04:29', '2015-07-12T18:34:30', '+08:30:01', '+00:00:00', '+08:30:01', '+02:00:00', '+00:20:14',   undef,     undef,   '!END overflow 00:20:14!🤑🤑 This day had a problem with exponentially small \'hours\'');
     testDay($k[1], $days->{$k[1]}, '2015-07-13T08:09:38', '2015-07-13T18:48:14', '+10:15:00', '+00:23:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   '');
-    testDay($k[2], $days->{$k[2]}, '2015-07-14T11:14:54', '2015-07-14T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!');
-    testDay($k[3], $days->{$k[3]}, '2015-07-15T16:19:42', '2015-07-15T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   '');
-    testDay($k[4], $days->{$k[4]}, '2015-07-16T00:00:00', '2015-07-16T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   '');
-    testDay($k[5], $days->{$k[5]}, '2015-07-17T00:00:00', '2015-07-17T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!');
-    testDay($k[6], $days->{$k[6]}, '2015-07-18T08:29:59', '2015-07-18T23:59:59', '+15:30:00', '+00:00:00', '+15:30:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!');
+    testDay($k[2], $days->{$k[2]}, '2015-07-14T11:14:54', '2015-07-14T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!😂😂 This day had a strange bug in \'breaks\'-calculus');
+    testDay($k[3], $days->{$k[3]}, '2015-07-15T16:19:42', '2015-07-15T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   "ÅÄÖ Bugfix where these days yield strange hours end time - start time = -15:00");
+    testDay($k[4], $days->{$k[4]}, '2015-07-16T00:00:00', '2015-07-16T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   "end time - start time = 00:00");
+    testDay($k[5], $days->{$k[5]}, '2015-07-17T00:00:00', '2015-07-17T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!Dangerous unsyncronized worklog entries');
+    testDay($k[6], $days->{$k[6]}, '2015-07-18T08:29:59', '2015-07-18T23:59:59', '+15:30:00', '+00:00:00', '+15:30:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!Dangerous unsyncronized worklog entries fixed days later 2015-07-18 is a saturday and all work done should be treated as overwork.');
     testDay($k[7], $days->{$k[7]}, '2015-07-19T00:00:00', '2015-07-19T00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   '');
-    testDay($k[8], $days->{$k[8]}, '2015-07-20T12:49:45', '2015-07-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!');
+    testDay($k[8], $days->{$k[8]}, '2015-07-20T12:49:45', '2015-07-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!Bug: Negative break duration?');
 }
 
 subtest "simpleCsvExport", \&simpleCsvExport;
