@@ -32,7 +32,7 @@ sub parseTags {
     is(ref($overworkReimbursed), 'DateTime::Duration', 'Overwork reimbursed ok');
     is(RMS::Dates::formatDurationHMS($overworkReimbursed),   '50:00:00', 'Overwork reimbursed ok');
     is($overworkReimbursedBy, '@bossman', 'Overwork reimbursed by ok');
-    is($remainingComment, 'Strange tag {{odd}}?  - . This is a  nice day. and overwork paid ', 'Comment remnants ok');
+    is($remainingComment, 'REIMBURSED 50:00 @bossman. Strange tag {{odd}}?  - . This is a  nice day. and overwork paid ', 'Comment remnants ok');
 
     };
     ok(0, $@) if $@;

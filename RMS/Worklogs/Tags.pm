@@ -57,7 +57,7 @@ sub parseTags {
                 $overworkReimbursed = DateTime::Duration->new(hours => $2, minutes => $3);
                 $overworkReimbursed = $overworkReimbursed->inverse() if $sign eq '-';
                 $overworkReimbursedBy = $4;
-                $comments = "$c $comments";
+                $comments = "$c. $comments";
             } else {
                 $comments = "Strange tag {{$c}}? $comments";
             }

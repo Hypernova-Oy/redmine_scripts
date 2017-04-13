@@ -6,6 +6,8 @@ use utf8;
 use Carp;
 use autodie;
 $Carp::Verbose = 'true'; #die with stack trace
+use Try::Tiny;
+use Scalar::Util qw(blessed);
 ## Pragmas set
 
 use DateTime::Format::Duration;
@@ -30,11 +32,6 @@ my $l = bless({}, 'RMS::Logger');
 my $dtF_hms = DateTime::Format::Strptime->new(
     pattern   => 'PT%HH%MM%SS',
 );
-my $ddF_hms = DateTime::Format::Duration->new(
-                    pattern => '%PPT%HH%MM%SS',
-                    normalise => 'ISO',
-                    base => DateTime->now(),
-                );
 
 my $defaultTime = 'PT00H00M00S' || '';
 
@@ -51,6 +48,32 @@ sub new {
   bless($self, $class);
   return $self;
 }
+
+##List the order of exported columns, and instructions on how to export them
+my @exportColumnsList = (
+  {header => 'day',                   type => 'date',    attr => 'ymd'},
+  {header => 'start',                 type => 'time',    attr => 'start'},
+  {header => 'end',                   type => 'time',    attr => 'end'},
+  {header => 'breaks',                type => 'time',    attr => 'breaks'},
+  {header => '+/-',                   type => 'time',    attr => 'overwork'},
+  {header => 'duration',              type => 'time',    attr => 'duration'},
+  {header => 'work accumulation',     type => 'time',    attr => 'overworkAccumulation'},
+  {header => 'vacation accumulation', type => 'time',    attr => 'vacationAccumulation'},
+  {header => 'remote',                type => 'time',    attr => 'remote'},
+  {header => 'benefits',              type => 'boolean', attr => 'benefits'},
+  {header => 'vacation',              type => 'time',    attr => 'vacation'},
+  {header => 'paid leave',            type => 'time',    attr => 'paidLeave'},
+  {header => 'non-paid leave',        type => 'time',    attr => 'nonPaidLeave'},
+  {header => 'sick leave',            type => 'time',    attr => 'sickLeave'},
+  {header => 'care leave',            type => 'time',    attr => 'careLeave'},
+  {header => 'training',              type => 'time',    attr => 'learning'},
+  {header => 'evening work',          type => 'time',    attr => 'eveningWork'},
+  {header => 'daily overwork 1',      type => 'time',    attr => 'dailyOverwork1'},
+  {header => 'daily overwork 2',      type => 'time',    attr => 'dailyOverwork2'},
+  {header => 'saturday?',             type => 'boolean', attr => 'isSaturday'},
+  {header => 'sunday?',               type => 'boolean', attr => 'isSunday'},
+  {header => 'comments',              type => 'string',  attr => 'comments'},
+);
 
 sub asOds {
   my ($self) = @_;
@@ -128,6 +151,13 @@ sub _checksAndVerifications {
   $l->fatal("'string' is not a known ODF datatype") unless is_odf_datatype('string');
 }
 
+=head2 _startMonth
+
+Calculates where the day entries of the new month are added, rewinds the row-iterator
+and exports the monthly header row.
+
+=cut
+
 sub _startMonth {
   my ($t, $rowPointer, $y, $m, $d, $rowsPerMonth) = @_;
 
@@ -143,60 +173,65 @@ sub _startMonth {
   }
 
   my $c; my $r=0;
-  #            row,       col, value, formatter
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('day');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('start');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('end');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('break');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('+/-');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('duration');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('workAccumulation');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('vacationAccumulation');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('remote?');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('benefits?');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('vacation');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('paid-leave');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('non-paid-leave');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('sick-leave');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('care-leave');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('training');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('eveningWork');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('dailyOverwork1');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('dailyOverwork2');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('saturday?');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('sunday?');
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string');$c->set_value('comments');
-  $$rowPointer++;
+  my $row = $t->get_row($$rowPointer);
+
+  for (my $i=0 ; $i<scalar(@exportColumnsList) ; $i++) {
+    my $colRule = $exportColumnsList[$i];
+
+    $c = $row->get_cell($i);
+
+    $l->trace("Printing header for \$colRule '".$colRule->{header}."', to cell '$i'") if $l->is_trace();
+
+    $c->set_type('string');$c->set_value( $colRule->{header} );
+  }
 }
+
+=head2 _writeDay
+
+Exports a day to the row specified by the $rowPointer.
+Reads instructions on how to handle each specific column from the @exportColumnsList
+
+=cut
 
 sub _writeDay {
   my ($t, $rowPointer, $ymd, $day) = @_;
 
-  my ($c, $v); my $r = 0;
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('date');   $c->set_value($ymd);
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->start ? $dtF_hms->format_datetime($day->start) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->end ? $dtF_hms->format_datetime($day->end) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->breaks ? RMS::Dates::formatDurationOdf($day->breaks) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->overwork ? RMS::Dates::formatDurationOdf($day->overwork) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->duration ? RMS::Dates::formatDurationOdf($day->duration) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  RMS::Dates::formatDurationOdf($day->overworkAccumulation)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  RMS::Dates::formatDurationOdf($day->vacationAccumulation)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  RMS::Dates::formatDurationOdf($day->remote)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day->benefits)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->vacation ? RMS::Dates::formatDurationOdf($day->vacation) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->paidLeave ? RMS::Dates::formatDurationOdf($day->paidLeave) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->nonPaidLeave ? RMS::Dates::formatDurationOdf($day->nonPaidLeave) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->sickLeave ? RMS::Dates::formatDurationOdf($day->sickLeave) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->careLeave ? RMS::Dates::formatDurationOdf($day->careLeave) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->learning ? RMS::Dates::formatDurationOdf($day->learning) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->eveningWork ? RMS::Dates::formatDurationOdf($day->eveningWork) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->dailyOverwork1 ? RMS::Dates::formatDurationOdf($day->dailyOverwork1) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('time');   $c->set_value(  $day->dailyOverwork2 ? RMS::Dates::formatDurationOdf($day->dailyOverwork2) : $defaultTime  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSaturday : undef)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('boolean');$c->set_value(  odf_boolean($day ? $day->isSunday : undef)  );
-  $c = $t->get_cell($$rowPointer, $r++ );$c->set_type('string'); $c->set_value(  $day->comments  );
+  my $c; my $r=0;
+  my $row = $t->get_row($$rowPointer);
 
-  $l->debug("$$rowPointer: $ymd - ".($day ? $day : 'undef')) if $l->is_debug();
+  for (my $i=0 ; $i<scalar(@exportColumnsList) ; $i++) {
+    my $colRule = $exportColumnsList[$i];
+    my $attr = $colRule->{attr};
+    my $val = $day->$attr();
+    my $type = $colRule->{type};
+
+    $c = $row->get_cell($i);
+
+    $c->set_type( $type );
+
+    if ($type eq 'date') {
+      $c->set_value( $val );
+    }
+    elsif ($type eq 'time') {
+      if (blessed($val) && $val->isa('DateTime')) {
+        $c->set_value(  $val = $dtF_hms->format_datetime($val)  );
+      }
+      elsif (blessed($val) && $val->isa('DateTime::Duration')) {
+        $c->set_value(  $val = RMS::Dates::formatDurationOdf($day->breaks)  );
+      }
+      else {
+        $c->set_value(  $defaultTime  );
+      }
+    }
+    elsif ($type eq 'boolean') {
+      $c->set_value(  odf_boolean($val)  );
+    }
+    elsif ($type eq 'string') {
+      $c->set_value(  $val  );
+    }
+
+    $l->trace("'$ymd' \$colRule '".$colRule->{header}."', to cell '$i', \$val='".($val // 'undef')."'") if $l->is_trace();
+  }
 }
 
 
