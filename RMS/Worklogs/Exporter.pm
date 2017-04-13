@@ -8,6 +8,7 @@ use autodie;
 $Carp::Verbose = 'true'; #die with stack trace
 use Try::Tiny;
 use Scalar::Util qw(blessed);
+use Params::Validate qw(:all);
 ## Pragmas set
 
 use DateTime::Format::Duration;
@@ -35,17 +36,21 @@ my $dtF_hms = DateTime::Format::Strptime->new(
 
 my $defaultTime = 'PT00H00M00S' || '';
 
+
+our %validations = (
+    worklogDays => {type => HASHREF},
+    user        => {type => HASHREF},
+    year        => {type => SCALAR|UNDEF, optional => 1},
+    file        => {type => SCALAR},
+);
 sub new {
-  my ($class, $params) = @_;
+  my $class = shift;
+  my $params = validate(@_, \%validations);
 
-  my $self = {
-    worklogDays => $params->{worklogDays},
-    file => $params->{file},
-    baseOds => 'base4.ods',
-    year => $params->{year},
-  };
-
+  my $self = {};
+  %$self = %$params; #Clone params to avoid having hard to debug issues with reusing parameters-hash
   bless($self, $class);
+  $self->{baseOds} = 'base4.ods';
   return $self;
 }
 
@@ -89,6 +94,8 @@ sub asOds {
   $meta->set_title('Työaika kivajuttu');
   $meta->set_creator('Olli-Antti Kivilahti');
   $meta->set_keywords('Koha-Suomi', 'Työajanseuranta');
+
+  $self->_fillFrontpage($doc);
 
   my $t = $doc->get_body->get_table_by_name('_data_');
   _checksAndVerifications($t);
@@ -151,6 +158,23 @@ sub _checksAndVerifications {
   $l->fatal("'string' is not a known ODF datatype") unless is_odf_datatype('string');
 }
 
+=head2 _fillFrontpage
+
+Adds user info to the frontpage
+
+=cut
+
+sub _fillFrontpage {
+  my ($self, $doc) = @_;
+
+  $l->info("User details: ".join(' ', %{$self->{user}})) if $l->is_info();
+  my $t = $doc->get_body->get_table_by_name('Etusivu');
+  $t->get_cell(0,3)->set_text( $self->{year} );
+  $t->get_cell(2,2)->set_text( $self->{user}->{lastname}.', '.$self->{user}->{firstname} );
+  $t->get_cell(3,2)->set_text( $self->{user}->{login} );
+  $t->get_cell(4,2)->set_text( $self->{user}->{mail} );
+}
+
 =head2 _startMonth
 
 Calculates where the day entries of the new month are added, rewinds the row-iterator
@@ -184,6 +208,8 @@ sub _startMonth {
 
     $c->set_type('string');$c->set_value( $colRule->{header} );
   }
+
+  $$rowPointer++;
 }
 
 =head2 _writeDay
@@ -217,7 +243,7 @@ sub _writeDay {
         $c->set_value(  $val = $dtF_hms->format_datetime($val)  );
       }
       elsif (blessed($val) && $val->isa('DateTime::Duration')) {
-        $c->set_value(  $val = RMS::Dates::formatDurationOdf($day->breaks)  );
+        $c->set_value(  $val = RMS::Dates::formatDurationOdf($val)  );
       }
       else {
         $c->set_value(  $defaultTime  );

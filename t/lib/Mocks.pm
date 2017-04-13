@@ -16,6 +16,9 @@ sub RMS_Users_getUser {
     return {
         id => 666,
         login => 'testDude',
+        firstname => 'TestDude',
+        lastname  => 'Dude',
+        mail => 'test@example.com',
     };
 }
 

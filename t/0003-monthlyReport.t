@@ -4,6 +4,8 @@ use Modern::Perl;
 use Test::More;
 use Test::MockModule;
 
+use ODF::lpOD;
+
 use RMS::Worklogs;
 use RMS::WorkRules;
 
@@ -20,6 +22,7 @@ my $vacation  = $RMS::WorkRules::DB::specialIssues{vacationIssueId};
 my $paidLeave = $RMS::WorkRules::DB::specialIssues{paidLeaveIssueId};
 my $learning  = 'Learning';
 my $testDude  = $RMS::WorkRules::DB::nameToUserId{'testDude'};
+my $tmpExportFile = '/tmp/workTime';
 
 subtest "overworkAccumulation", \&overworkAccumulation;
 sub overworkAccumulation {
@@ -187,8 +190,51 @@ sub overworkAccumulation {
     is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->duration() ),             '07:21:00', '03-03 sick leave partially, but workday duration is as expected');
     is(RMS::Dates::formatDurationHMS( $days->{'2017-03-03'}->sickLeave() ),            '05:00:00', '03-03 sick leave partially');
 
-    $days = $worklogger->asOds('/tmp/workTime');
+    $days = $worklogger->asOds($tmpExportFile);
     ok($days, '.ods generated');
+
+    subtest ".ods contents", sub {
+        my $doc = odf_document->get( $tmpExportFile.'.ods' );
+        ok($doc, "Given the .ods document");
+        my $t = $doc->get_body->get_table_by_name('_data_');
+        ok($t, "Given the _data_-sheet");
+
+        my $frontPage = $doc->get_body->get_table_by_name('Etusivu');
+        ok($frontPage,                                                "Given the _data_-sheet");
+        is($frontPage->get_cell(0,3)->get_text(), 2017,               "Front page year");
+        is($frontPage->get_cell(2,2)->get_text(), 'Dude, TestDude',   "Front page user names");
+        is($frontPage->get_cell(3,2)->get_text(), 'testDude',         "Front page login");
+        is($frontPage->get_cell(4,2)->get_text(), 'test@example.com', "Front page email");
+
+        my $headerRow = $t->get_row(0);
+        ok($headerRow,                                          "Given 2017-01 header row");
+        is($headerRow->get_cell(0)->get_text(),  'day',        '2017-01 header day');
+        is($headerRow->get_cell(21)->get_text(), 'comments',   '2017-01 header comments');
+        is($headerRow->get_cell(22),              undef,        '2017-01 headers length as expected');
+
+        my $row20170101 = $t->get_row(1);
+        ok($row20170101,                                                   "Given 2017-01-01 day row");
+        is($row20170101->get_cell(0)->get_value(),  '2017-01-01T00:00:00', '2017-01-01 ymd');
+        is($row20170101->get_cell(1)->get_value(),  'PT00H00M00S',         '2017-01-01 start');
+
+        my $row20170103 = $t->get_row(3);
+        ok($row20170103,                                                   "Given 2017-01-03 day row");
+        is($row20170103->get_cell( 0)->get_value(),  '2017-01-03T00:00:00', '2017-01-03 ymd');
+        is($row20170103->get_cell( 1)->get_value(),  'PT09H45M00S',         '2017-01-03 start');
+        is($row20170103->get_cell( 2)->get_value(),  'PT17H45M00S',         '2017-01-03 end');
+        is($row20170103->get_cell( 3)->get_value(),  'PT00H00M00S',         '2017-01-03 break');
+        is($row20170103->get_cell( 4)->get_value(),  'PT00H45M00S',         '2017-01-03 overwork');
+        is($row20170103->get_cell( 5)->get_value(),  'PT08H00M00S',         '2017-01-03 duration');
+
+        my $row20170301 = $t->get_row(81);
+        ok($row20170301,                                                   "Given 2017-03-01 day row");
+        is($row20170301->get_cell( 0)->get_value(),  '2017-03-01T00:00:00', '2017-03-01 ymd');
+        is($row20170301->get_cell( 1)->get_value(),  'PT08H00M00S',         '2017-03-01 start');
+        is($row20170301->get_cell( 2)->get_value(),  'PT15H30M00S',         '2017-03-01 end');
+        is($row20170301->get_cell( 3)->get_value(),  'PT00H09M00S',         '2017-03-01 break');
+        is($row20170301->get_cell( 4)->get_value(),  'PT00H00M00S',         '2017-03-01 overwork');
+        is($row20170301->get_cell( 5)->get_value(),  'PT07H21M00S',         '2017-03-01 duration');
+    };
 #    `rm /tmp/workTime.ods`;
     };
     ok(0, $@) if $@;
