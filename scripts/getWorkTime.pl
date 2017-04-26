@@ -70,6 +70,8 @@ foreach my $type (@types) {
         $wollel->asOds($filePath);
     } elsif ($type eq 'csv') {
         $wollel->asCsv($filePath);
+    } else {
+        die "Unknown --type '$type'";
     }
 }
 
