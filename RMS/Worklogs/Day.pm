@@ -207,6 +207,7 @@ sub setOverworkAccumulation {
     $overworkAccumulation = $overworkAccumulation->clone()->add_duration($self->overwork);
     $overworkAccumulation->subtract_duration($self->overworkReimbursed) if $self->overworkReimbursed;
     $self->{overworkAccumulation} = $overworkAccumulation;
+    $l->trace("\$overworkAccumulation='".RMS::Dates::formatDurationPHMS($overworkAccumulation)."'") if $l->is_trace();
 }
 sub overworkAccumulation {
     return shift->{overworkAccumulation};
