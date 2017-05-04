@@ -206,6 +206,10 @@ sub overworkAccumulation {
         is($frontPage->get_cell(3,2)->get_text(), 'testDude',         "Front page login");
         is($frontPage->get_cell(4,2)->get_text(), 'test@example.com', "Front page email");
 
+        my $januaryTable = $doc->get_body->get_table_by_position(1);
+        ok($januaryTable,                                                "Given the January-sheet");
+        is($januaryTable->get_cell('J42')->get_text(), 'Dude, TestDude', "User signature clarification name");
+
         my $headerRow = $t->get_row(0);
         ok($headerRow,                                          "Given 2017-01 header row");
         is($headerRow->get_cell(0)->get_text(),  'day',        '2017-01 header day');

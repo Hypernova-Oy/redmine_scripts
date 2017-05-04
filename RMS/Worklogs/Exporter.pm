@@ -135,7 +135,7 @@ sub asOds {
     $l->info("Exporting day '$ymd'") if $l->is_info();
     #Check if the month changes, so we reorient the pointer
     if (not($prevM) || $m ne $prevM) {
-      _startMonth($t, $rowPointer, $y, $m, $d, $rowsPerMonth);
+      $self->_startMonth($doc, $rowPointer, $y, $m, $d, $rowsPerMonth);
     }
     _writeDay($t, $rowPointer, $ymd, $day);
 
@@ -177,13 +177,18 @@ sub _fillFrontpage {
 
 =head2 _startMonth
 
+  $self->_startMonth($doc, $rowPointer, $y, $m, $d, $rowsPerMonth);
+
 Calculates where the day entries of the new month are added, rewinds the row-iterator
 and exports the monthly header row.
+
+Adds the user name to the signature section of each month
 
 =cut
 
 sub _startMonth {
-  my ($t, $rowPointer, $y, $m, $d, $rowsPerMonth) = @_;
+  my ($self, $doc, $rowPointer, $y, $m, $d, $rowsPerMonth) = @_;
+  my $t = $doc->get_body->get_table_by_name('_data_');
 
   #Calculate from where the next month begins
   if (1) { #Calculate the correct iterator position from the month requested.
@@ -210,6 +215,25 @@ sub _startMonth {
   }
 
   $$rowPointer++;
+
+  $self->_fillMonthlyUserInfo($doc, $y, $m, $d);
+}
+
+=head2 _fillMonthlyUserInfo
+
+Adds user-specific fields to the signature-section of the monthly view.
+
+=cut
+
+sub _fillMonthlyUserInfo {
+  my ($self, $doc, $y, $m, $d) = @_;
+
+  #First table is the front page. Then each table is numbered like 1 = January, 2 = February, ...
+  my $t = $doc->get_body->get_table_by_position($m); #Indexes start from 0 but January actually is at index 1
+
+  my $row = $t->get_row(41);
+  my $c = $row->get_cell('J');
+  $c->set_text( $self->{user}->{lastname}.', '.$self->{user}->{firstname} );
 }
 
 =head2 _writeDay
