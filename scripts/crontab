@@ -2,5 +2,5 @@
 ## Put this to /etc/cron.d/rms to export worklog entries daily to Kätkölä
 ##
 
-23 50 * * * redmine /home/redmine/redmine_scripts/scripts/exportToKatkola.sh
+23 50 * * * redmine cd /home/redmine/redmine_scripts && scripts/exportToKatkola.sh > /tmp/exportToKatkola.sh.log 2>&1
 
