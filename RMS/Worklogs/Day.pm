@@ -408,7 +408,7 @@ sub _verifyStartTime {
     }
     unless ($startDt->ymd('-') eq $dayYMD) { #$startDt might get moved to the previous day, so catch this and fix it.
         $l->trace("$dayYMD -> Moving \$startDt to $dayYMD from ".$startDt->ymd()) if $l->is_trace();
-        $startDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD 00:00:00" );
+        $startDt = DateTime::Format::MySQL->parse_datetime( "$dayYMD 00:00:01" ); #one second is important to distinguish this value from undefined to defined, and affects how this value is displayed in LibreOffice
     }
 
     ##Calculate how many hours is left for today after work

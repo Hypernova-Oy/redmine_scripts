@@ -164,7 +164,7 @@ sub _verifyStartTime {
     &$_verifyStartTimeTest('2016-05-20', '03:45:00', '2016-05-20 03:45:00', '20:15', '00:00:00');
     &$_verifyStartTimeTest('2016-05-20', '03:44:59', '2016-05-20 07:45:00', '20:15', '04:00:00');
     &$_verifyStartTimeTest('2016-05-20', '03:44:59', undef,                 '20:15', '04:15:00');
-    &$_verifyStartTimeTest('2016-05-20', '00:00:00', '2016-05-19 23:30:00', '20:15', '00:00:00');
+    &$_verifyStartTimeTest('2016-05-20', '00:00:01', '2016-05-19 23:30:00', '20:15', '00:00:00');
 }
 
 subtest "_verifyEndTime", \&_verifyEndTime;
@@ -331,8 +331,8 @@ sub advancedDaily {
     testDay($k[1], $days->{$k[1]}, '2015-07-13T08:09:38', '2015-07-13T18:48:14', '+10:15:00', '+00:23:36', '+03:00:00', '+02:00:00', '+00:00:00',   undef,     undef,   '');
     testDay($k[2], $days->{$k[2]}, '2015-07-14T11:14:54', '2015-07-14T19:14:36', '+07:59:42', '+00:00:00', '+00:44:42', '+00:44:42', '+00:16:46',   undef,     undef,   '!END overflow 00:16:46!😂😂 This day had a strange bug in \'breaks\'-calculus');
     testDay($k[3], $days->{$k[3]}, '2015-07-15T16:19:42', '2015-07-15T23:35:25', '+07:15:00', '+00:00:43', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   "ÅÄÖ Bugfix where these days yield strange hours end time - start time = -15:00");
-    testDay($k[4], $days->{$k[4]}, '2015-07-16T00:00:00', '2015-07-16T19:36:21', '+09:00:00', '+10:36:21', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   "end time - start time = 00:00");
-    testDay($k[5], $days->{$k[5]}, '2015-07-17T00:00:00', '2015-07-17T15:30:00', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:39',   undef,     undef,   '!END overflow 00:00:39!Dangerous unsyncronized worklog entries');
+    testDay($k[4], $days->{$k[4]}, '2015-07-16T00:00:01', '2015-07-16T19:36:21', '+09:00:00', '+10:36:20', '+01:45:00', '+01:45:00', '+00:00:00',   undef,     undef,   "end time - start time = 00:00");
+    testDay($k[5], $days->{$k[5]}, '2015-07-17T00:00:01', '2015-07-17T15:30:01', '+15:30:00', '+00:00:00', '+08:15:00', '+02:00:00', '+00:00:40',   undef,     undef,   '!END overflow 00:00:40!Dangerous unsyncronized worklog entries');
     testDay($k[6], $days->{$k[6]}, '2015-07-18T08:29:59', '2015-07-18T23:59:59', '+15:30:00', '+00:00:00', '+15:30:00', '+02:00:00', '+00:00:00',   undef,     undef,   '!START underflow 01:53:29!Dangerous unsyncronized worklog entries fixed days later 2015-07-18 is a saturday and all work done should be treated as overwork.');
     testDay($k[7], $days->{$k[7]}, '2015-07-19T00:00:00', '2015-07-19T00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00', '+00:00:00',   undef,     undef,   '');
     testDay($k[8], $days->{$k[8]}, '2015-07-20T12:49:45', '2015-07-20T18:44:43', '+05:54:58', '+00:00:00', '-01:20:02', '+00:00:00', '+00:38:18',   undef,     undef,   '!END overflow 00:38:18!Bug: Negative break duration?');
