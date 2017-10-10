@@ -11,6 +11,7 @@ use Scalar::Util qw(blessed);
 use Params::Validate qw(:all);
 ## Pragmas set
 
+use Encode;
 use DateTime::Format::Duration;
 use DateTime::Format::Strptime;
 use ODF::lpOD;
@@ -260,24 +261,24 @@ sub _writeDay {
     $c->set_type( $type );
 
     if ($type eq 'date') {
-      $c->set_value( $val );
+      cellSetValue($t, $c, $type, $val);
     }
     elsif ($type eq 'time') {
       if (blessed($val) && $val->isa('DateTime')) {
-        $c->set_value(  $val = $dtF_hms->format_datetime($val)  );
+        cellSetValue($t, $c, $type, $val = $dtF_hms->format_datetime($val)  );
       }
       elsif (blessed($val) && $val->isa('DateTime::Duration')) {
-        $c->set_value(  $val = RMS::Dates::formatDurationOdf($val)  );
+        cellSetValue($t, $c, $type, $val = RMS::Dates::formatDurationOdf($val)  );
       }
       else {
-        $c->set_value(  $defaultTime  );
+        cellSetValue($t, $c, $type, $defaultTime  );
       }
     }
     elsif ($type eq 'boolean') {
-      $c->set_value(  odf_boolean($val)  );
+      cellSetValue($t, $c, $type, odf_boolean($val)  );
     }
     elsif ($type eq 'string') {
-      $c->set_value(  $val  );
+      cellSetValue($t, $c, $type, $val  );
     }
 
     $l->trace("'$ymd' \$colRule '".$colRule->{header}."', to cell '$i', \$val='".($val // 'undef')."'") if $l->is_trace();
@@ -349,6 +350,33 @@ sub fillMissingYMDs {
         } while ($b && $a < $b);
     }
     return \@ymds;
+}
+
+=head2 cellSetValue
+
+Wrapper for ODF::lpOD::Cell->set_value()
+to catch exceptions.
+
+=cut
+
+sub cellSetValue {
+  my ($table, $cell, $type, $val, $recursionDepth) = @_;
+
+  try {
+    $cell->set_value( Encode::encode('UTF-8', $val) ); #Looks like the value is expected to be as bytes
+  } catch {
+    my $e = $_;
+    if ($e) { #Catch any exceptions here and solve them
+      die "\n\n$type\n$val\n\n$e";
+#      require Encode;
+#      my $bytes = Encode::encode('UTF-8', $val);
+#      cellSetValue($table, $cell, $type, $bytes, 1) unless $recursionDepth;
+#      die "\n\n$type\n$val\n\n$e" if $recursionDepth;
+    }
+    elsif ($e =~ /Cannot decode string with wide characters/) { #this is one known exception type, and was caused by not encoding the value to be set
+      #Apparently ODF::lpOD expects byte stream instead of perl internal string representation.
+    }
+  }
 }
 
 1;

@@ -23,5 +23,4 @@ putti jraisa
 putti janPasi
 putti taskula
 putti sundahl
-putti JukkaAaltonen
 
